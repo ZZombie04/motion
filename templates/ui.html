@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 입력 → 결과 시연 뼈대(기기 틀 없이 화면 속 UI). 제시 → 조작 → 결과 → 유지. */
+  #ask { position: absolute; left: 12%; right: 12%; top: 16%; text-align: center; }
+  #ask h2 { margin: 0 0 calc(var(--u) * 4); }
+  #field { text-align: left; min-height: calc(var(--u) * 10.5); border-radius: calc(var(--u) * 5.25); padding: 0 calc(var(--u) * 1.5) 0 calc(var(--u) * 3.8); font-size: calc(var(--u) * 3.8); font-weight: 600; }
+  #field .grow { position: relative; height: calc(var(--u) * 10.5); display: flex; align-items: center; }
+  #ph { position: absolute; left: 0; color: var(--fg-3); font-weight: 520; }
+  #send { font-size: calc(var(--u) * 2.8); }
+  #result { position: absolute; left: 12%; right: 12%; top: 52%; padding: calc(var(--u) * 3.6) calc(var(--u) * 4); }
+  #result .mo-item { font-size: calc(var(--u) * 3.5); padding: calc(var(--u) * 2.1) 0; }
+  #state { position: absolute; left: 0; right: 0; bottom: 7%; text-align: center; }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}}>
+  <div class="mo-bg"><div class="mo-stagelight"></div><div class="mo-dotgrid" style="opacity:.45"></div></div>
+
+  <div class="mo-world">
+    <section id="ask">
+      <h2 class="mo-h2" id="q">무엇을 도와드릴까요?</h2>
+      <div class="mo-input" id="field">
+        <span class="grow"><span id="ph">무엇이든 맡겨 보세요</span><span id="typed"></span></span>
+        <span class="mo-btn round" id="send"><i data-icon="arrow-up" data-stroke="2.4"></i></span>
+      </div>
+    </section>
+
+    <div class="mo-card" id="result">
+      <p class="mo-label"><span class="mo-dot"></span>RESULT</p>
+      <div class="mo-list">
+        <div class="mo-item"><span class="mo-check"></span><span class="grow">결과 첫 줄</span></div>
+        <div class="mo-item"><span class="mo-check"></span><span class="grow">결과 둘째 줄</span></div>
+        <div class="mo-item"><span class="mo-check"></span><span class="grow">결과 셋째 줄</span></div>
+      </div>
+    </div>
+
+    <p class="mo-label" id="state">ASK → RESULT</p>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H } = M;
+  M.grain();
+  cam.drift({ zoom: 1.04 });
+
+  // 제시 (0–1.0)
+  tl.from('#q', { autoAlpha: 0.35, y: u * 2, duration: 0.7 }, 0);              // 0초에 이미 보이기 시작한 상태
+  tl.from('#field', { autoAlpha: 0.2, y: u * 5, duration: 0.9 }, 0);
+
+  // 조작 (1.0–3.4): 커서가 원인을 만든다
+  const cur = M.cursor({ x: W * 0.86, y: H * 0.9, hidden: true });
+  cur.show(0.55);
+  cur.moveTo('#ph', 0.55);
+  cur.click(1.3);
+  tl.to('#ph', { autoAlpha: 0, duration: 0.2 }, 1.32);
+  cur.moveTo('#field', { ax: 0.8, ay: 1.75, duration: 0.5 }, 1.4);             // 클릭한 뒤 커서는 글자를 가리지 않게 비켜난다
+  M.type('#typed', '이번 주 회의록 3줄로 요약해줘', { duration: 1.35 }, 1.42);
+  cam.lookAt('#field', { zoom: 1.12, duration: 1.5 }, 0.9);
+  cur.moveTo('#send', 2.9);
+  cur.click(3.3, { accent: true });
+  M.press('#send', 3.3);
+  cur.hide(3.5);
+
+  // 결과 (3.4–5.4): 같은 흐름에서 결과가 올라온다
+  cam.home({ duration: 1.3 }, 3.3);
+  M.reveal('#result', { type: 'lift' }, 3.45);
+  M.reveal('#result .mo-item', { type: 'fade', stagger: 0.12 }, 3.7);
+  M.fill('#result .mo-check', { duration: 0.5, ease: 'mo.spring', stagger: 0.18 }, 4.2);
+
+  // 유지: 끝 상태를 읽을 시간
+  M.reveal('#state', { type: 'fade' }, 5.0);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AI 리치쌤 — 채널 엔딩 스팅</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 요청: "채널 영상 끝에 붙일 4초짜리 로고 엔딩 만들어줘. 채널 이름은 'AI 리치쌤'이야." */
+  #lock { position: absolute; left: 0; right: 0; top: 50%; margin-top: calc(var(--u) * -15.5); display: flex; justify-content: center; align-items: baseline; }
+  .wm { font-size: calc(var(--u) * 22.5); font-weight: 780; letter-spacing: -0.045em; line-height: 1.15; white-space: nowrap; }
+  #w1 { font-family: var(--font-latin); font-weight: 720; letter-spacing: -0.06em; }
+  #gap { display: inline-block; width: calc(var(--u) * 10); height: 1px; flex: none; }
+  #dot { position: absolute; border-radius: 99px; background: var(--accent); box-shadow: 0 0 calc(var(--u) * 2.4) color-mix(in oklab, var(--accent) 70%, transparent), 0 0 calc(var(--u) * 7) color-mix(in oklab, var(--accent) 35%, transparent); }
+  #tag { position: absolute; left: 0; right: 0; top: 50%; margin-top: calc(var(--u) * 16.2); text-align: center; font-size: calc(var(--u) * 2.3); letter-spacing: 0.34em; }
+</style>
+</head>
+<body>
+<div id="stage" data-title="AI 리치쌤 엔딩" data-width="1920" data-height="1080" data-fps="30" data-duration="4" data-theme="ink" data-accent="amber">
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-glow" id="halo" style="left:50%;top:52%;--s:calc(var(--u)*120);--a:.2"></div>
+  </div>
+
+  <div class="mo-world">
+    <div id="lock"><span class="wm" id="w1">AI</span><i id="gap"></i><span class="wm" id="w2">리치쌤</span></div>
+    <i id="dot"></i>
+    <p class="mo-label" id="tag">THANKS FOR WATCHING</p>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H } = M;
+
+  // 로그라인: 점 하나가 켜져 선이 되고, 그 선에서 이름이 솟는다. 선은 다시 점으로 오므라들어 이름 사이에 남는다.
+  M.grain();
+  const lock = M.rect('#lock'), gap = M.rect('#gap'), w1 = M.rect('#w1');
+  const D0 = u * 3.2, D1 = u * 2.7;                                   // 처음 점 / 마지막 점의 지름
+  const lineY = w1.y + w1.h * 0.93, lineW = M.rect('#w2').x + M.rect('#w2').w - w1.x + u * 6, lineH = u * 0.5;
+  const midY = w1.y + w1.h * 0.56;                                     // 글자 가운데 높이(가운뎃점 자리)
+
+  // 카메라: 살짝 가까이에서 시작해 물러났다가, 끝까지 아주 천천히 다시 다가간다
+  cam.set({ zoom: 1.14 });
+  cam.to({ zoom: 1, duration: 2.0, ease: 'mo.out' }, 0.25);
+  cam.to({ zoom: 1.035, duration: 1.75, ease: 'sine.inOut' }, 2.25);
+
+  // 0.0 — 점이 켜진다(첫 프레임에 이미 보인다)
+  gsap.set('#dot', { left: W / 2 - D0 / 2, top: H / 2 - D0 / 2, width: D0, height: D0 });
+  tl.fromTo('#dot', { scale: 0.35 }, { scale: 1, duration: 0.5, ease: 'mo.pop' }, 0);
+  tl.fromTo('#halo', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 1.6, ease: 'mo.out' }, 0);
+
+  // 0.42 — 점이 좌우로 늘어나 기준선이 된다
+  tl.to('#dot', { left: W / 2 - lineW / 2, top: lineY, width: lineW, height: lineH, duration: 0.62, ease: 'mo.inOut' }, 0.42);
+
+  // 0.8 — 선에서 이름이 솟는다
+  M.reveal('#w1', { type: 'chars', duration: 0.85, stagger: 0.05 }, 0.8);
+  M.reveal('#w2', { type: 'chars', duration: 0.85, stagger: 0.05 }, 0.92);
+
+  // 1.72 — 선이 오므라들어 두 단어 사이의 점이 된다
+  tl.to('#dot', { left: gap.cx - D1 / 2, top: midY - D1 / 2, width: D1, height: D1, duration: 0.6, ease: 'mo.inOut' }, 1.72);
+  M.pulse('#dot', 2.3, { scale: 1.5, duration: 0.6 });
+  tl.to('#halo', { scale: 1.08, duration: 0.25, ease: 'power2.out' }, 2.3);
+  tl.to('#halo', { scale: 1, duration: 1.2, ease: 'sine.inOut' }, 2.55);
+
+  // 2.15 — 라벨이 해독되듯 자리 잡고, 나머지는 읽는 시간
+  M.scene('#tag', 2.1);
+  M.scramble('#tag', { duration: 0.75 }, 2.15);
+});
+</script>
+</body>
+</html>

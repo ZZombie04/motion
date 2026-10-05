@@ -1,0 +1,40 @@
+{
+  "name": "motion-director",
+  "version": "1.0.0",
+  "description": "말 한마디를 감독 수준의 모션그래픽으로 — 리프롬프팅 디렉터 + 결정적 HTML/GSAP 엔진 + MP4 렌더러 + MCP 서버",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "bin": {
+    "motion": "bin/motion.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "node scripts/sync-vendor.mjs",
+    "test": "node scripts/selftest.mjs",
+    "motion": "node bin/motion.mjs",
+    "mcp": "node mcp/server.mjs",
+    "connect": "node scripts/connect.mjs",
+    "samples": "node scripts/render-samples.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "gsap": "^3.15.0",
+    "puppeteer-core": "^25.12.0",
+    "zod": "^4.6.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZZombie04/motion.git"
+  },
+  "keywords": [
+    "motion-graphics",
+    "claude-skill",
+    "mcp",
+    "gsap",
+    "video",
+    "korean"
+  ]
+}

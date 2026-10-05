@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>학생 참여율 62 → 96</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 요청: "학생 참여율이 62%에서 96%로 올랐다는 걸 발표 화면에 띄울 영상으로 만들어줘." */
+
+  /* 카메라가 끝까지 6%쯤 다가가므로 정지 구도의 좌우 여백을 9%로 넉넉히 잡는다 */
+  #stage { --mx: calc(var(--W) * 0.09); }
+
+  /* 뒤 레이어 — 라벨과 초대형 숫자 */
+  #lab { position: absolute; left: var(--mx); top: calc(var(--H) * 0.127); margin: 0; font-size: calc(var(--u) * 4.6); font-weight: 620; letter-spacing: -0.02em; line-height: 1; color: var(--fg-2); }
+  .ph { position: absolute; right: var(--mx); top: calc(var(--H) * 0.127 + var(--u) * 1.18); font-size: calc(var(--u) * 1.9); }
+  #num { position: absolute; left: calc(var(--mx) - var(--u) * 2.2); top: calc(var(--H) * 0.191); overflow: hidden; padding: 0.04em 0.05em 0.03em 0;
+         font-family: var(--font-latin); font-weight: 640; font-size: calc(var(--u) * 54); line-height: 0.8; }
+  #numIn { display: flex; align-items: baseline; }
+  #n { letter-spacing: -0.065em; }
+  #pct { font-family: var(--font-latin); font-size: 0.3em; font-weight: 600; letter-spacing: -0.02em; line-height: 1; margin-left: 0.3em; color: var(--fg-2); }
+
+  /* 가운데 레이어 — 해석 한 줄(민트 구간 바로 위, 숫자와 같은 밑줄) */
+  #cap { position: absolute; right: var(--mx); top: calc(var(--H) * 0.5765); margin: 0; text-align: right; white-space: nowrap; font-size: calc(var(--u) * 4.6); font-weight: 600; letter-spacing: -0.028em; line-height: 1.2; color: var(--fg-2); }
+  #capHl { color: var(--fg); font-weight: 700; }
+
+  /* 앞 레이어 — 눈금 100칸(1칸 = 1%). 칸마다 --a(켜짐) --k(물마루) --g(훑는 빛) --ap(등장)을 프레임마다 받는다 */
+  #gauge { position: absolute; left: var(--mx); right: var(--mx); bottom: calc(var(--H) * 0.203); height: calc(var(--u) * 12);
+           --h0: calc(var(--u) * 2.2); --h1: calc(var(--u) * 8.6); --hc: calc(var(--u) * 2.6); }
+  .tk { position: absolute; bottom: 0; border-radius: 99px; --a: 0; --k: 0; --g: 0; --ap: 1; --lit: color-mix(in oklab, var(--fg) 76%, transparent);
+        height: calc((var(--h0) + (var(--h1) - var(--h0)) * var(--a) + var(--hc) * var(--k)) * var(--ap));
+        background: color-mix(in oklab, color-mix(in oklab, #fff calc((var(--k) * 0.75 + var(--g) * 0.6) * 100%), var(--lit)) calc(var(--a) * 100%), var(--fg-4)); }
+  .tk.gain { --lit: var(--accent); box-shadow: 0 0 calc(var(--u) * 1.5) color-mix(in oklab, var(--accent) calc(var(--a) * 50%), transparent); }
+  #bloom { position: absolute; bottom: calc(var(--u) * -1.5); height: calc(var(--u) * 11.5); border-radius: 99px; background: var(--accent); filter: blur(calc(var(--u) * 3.2)); opacity: 0; }
+  .sc { position: absolute; top: calc(var(--H) * 0.797 + var(--u) * 2.1); margin: 0; font-family: var(--font-mono); font-size: calc(var(--u) * 1.8); font-weight: 500; letter-spacing: 0.04em; line-height: 1; color: var(--fg-3); white-space: nowrap; }
+  #sc62 { color: var(--fg-2); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="학생 참여율 62 → 96" data-width="1920" data-height="1080" data-fps="30" data-duration="8" data-theme="night" data-accent="mint">
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-gridlines" style="opacity:.55"></div>
+    <div class="mo-glow" id="pool" style="left:79%;top:86%;--s:calc(var(--u)*125);--a:.2;opacity:0"></div>
+  </div>
+
+  <div class="mo-world">
+    <div class="mo-layer" data-z="-240">
+      <p id="lab">학생 참여율</p>
+      <p class="mo-label ph" id="phA">Before</p>
+      <p class="mo-label ph" id="phB">After</p>
+      <div id="num"><div id="numIn"><span id="n">62</span><small id="pct">%</small></div></div>
+    </div>
+    <div class="mo-layer" data-z="0">
+      <p id="cap">62%에서 <span id="capHl">34%p</span> 올랐습니다</p>
+    </div>
+    <div class="mo-layer" data-z="110">
+      <div id="gauge"><i id="bloom"></i></div>
+      <p class="sc" id="sc0">0</p>
+      <p class="sc" id="sc62">62</p>
+      <p class="sc" id="sc100">100</p>
+    </div>
+  </div>
+
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, H } = M;
+  const A = 62, B = 96, N = 100;                       // 사용자가 준 두 수치. 눈금 1칸 = 1%
+  const T = { count: 1.6, dur: 2.8 };                  // 카운트 시작·길이
+
+  // 숫자(M.count)는 반올림해 보여 주므로 "96"은 트윈이 끝나기 전에 뜬다. 그 순간을 착지로 삼는다(이후 꼬리는 화면에 변화가 없다).
+  const eIn = gsap.parseEase('power3.out'), eUp = gsap.parseEase('mo.cam');
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (eUp(m) < (B - 0.5 - A) / (B - A)) lo = m; else hi = m; }
+  T.land = +(T.count + hi * T.dur).toFixed(3);         // ≈ 3.95초
+
+  // ── 무대: 남색 스튜디오. 카메라는 끝까지 아주 느리게 다가가며 손으로 든 듯 흔들린다 ──
+  M.grain();
+  cam.drift({ zoom: 1.035 });
+  cam.float({ rot: 0.25, pos: u * 0.3, period: 11 });
+
+  // ── 눈금 100칸 ──
+  const g = M.$('#gauge'), gr = M.rect(g), tw = (gr.w / N) * 0.38, pitch = (gr.w - tw) / (N - 1);   // 첫 칸의 왼쪽 = 왼쪽 여백선, 100번째 칸의 오른쪽 = 오른쪽 여백선
+  const ticks = [];
+  for (let i = 1; i <= N; i++) {
+    const el = M.el('<i class="tk' + (i > A ? ' gain' : '') + '"></i>', g);
+    el.style.left = ((i - 1) * pitch).toFixed(2) + 'px';
+    el.style.width = tw.toFixed(2) + 'px';
+    ticks.push(el);
+  }
+  const edge = (i) => gr.x + (i - 1) * pitch + tw;     // i번째 칸의 오른쪽 끝(무대 px)
+  gsap.set('#sc0', { left: gr.x });
+  gsap.set('#sc62', { left: edge(A), xPercent: -100 });
+  gsap.set('#sc100', { left: edge(N), xPercent: -100 });
+
+  // 켜진 칸 수 f(t). 처음엔 0→62로 쓸려 오고(0초에 이미 진행 중), 이후엔 카운트와 같은 이징을 탄다.
+  // 숫자가 n으로 바뀌는 바로 그 순간 n번째 칸이 다 켜지도록 반 칸 앞세운다.
+  const front = (t) => {
+    if (t < T.count) return A * eIn(M.clamp((t + 0.3) / 1.35, 0, 1));
+    const v = A + (B - A) * eUp(M.clamp((t - T.count) / T.dur, 0, 1));
+    return Math.min(B, v + Math.min(0.5, v - A));
+  };
+  const fx = { flash: 0, glint: -0.2 };
+  const pool = M.$('#pool'), bloom = M.$('#bloom');
+  M.onFrame((t) => {
+    const f = front(t), speed = Math.abs(f - front(t - 1 / 120)) * 120, k = M.clamp(speed / 24, 0, 1) * (t < T.count ? 0.55 : 1);
+    const gp = fx.glint * (N + 16) - 8;                // 홀드 중 한 번 훑는 빛의 위치(칸)
+    for (let i = 1; i <= N; i++) {
+      const s = ticks[i - 1].style, d = f - i;
+      const a = M.smooth(d + 1);                        // 0 꺼짐 → 1 켜짐
+      let crest = d > -1 ? Math.exp(-Math.max(0, d) / 2.6) * M.clamp(d + 1, 0, 1) * k : 0;     // 맨 앞 칸이 가장 높고 뒤로 갈수록 잦아드는 물마루
+      if (i <= B && i > B - 8) crest += fx.flash * 0.8 * Math.exp(-(B - i) / 1.5);            // 착지: 96번째 칸에서 물마루가 한 번 부서진다
+      s.setProperty('--a', a.toFixed(3));
+      s.setProperty('--k', crest.toFixed(3));
+      s.setProperty('--g', (a * Math.exp(-Math.pow((i - gp) / 5, 2))).toFixed(3));
+      s.setProperty('--ap', M.smooth((t + 0.5 - i * 0.006) / 0.25).toFixed(3));     // 눈금 자체는 켜지는 물결보다 한발 앞서 왼쪽부터 선다
+    }
+    const p = M.clamp((f - A) / (B - A), 0, 1);        // 늘어난 구간의 진행(0→1): 민트 빛이 함께 번진다
+    bloom.style.left = (A * pitch).toFixed(1) + 'px';
+    bloom.style.width = Math.max(0, (f - A) * pitch - (pitch - tw)).toFixed(1) + 'px';
+    bloom.style.opacity = (Math.min(1, (f - A) / 5) * (0.3 + 0.25 * fx.flash)).toFixed(3);
+    pool.style.opacity = (p * (0.82 + 0.05 * Math.sin(t * 1.4)) + 0.55 * fx.flash).toFixed(3);
+  });
+
+  // ── 1 제시 (0–1.6s): 비스듬히 있던 화면이 바로 서며 "62%"가 솟는다. 이전 상태의 숫자는 한 톤 낮게 ──
+  cam.set({ rx: 3.5, ry: -13, zoom: 1.16, y: H / 2 + u * 3 });
+  cam.to({ rx: 0, ry: 0, zoom: 1, y: H / 2, duration: 1.6, ease: 'mo.out' }, 0);
+  tl.from('#lab', { autoAlpha: 0.3, y: u * 1.4, duration: 0.6 }, 0);
+  tl.from('#numIn', { yPercent: 60, duration: 1.0, ease: 'mo.out' }, 0);
+  tl.from('#pct', { autoAlpha: 0, x: -u * 2.4, duration: 0.6 }, 0.38);
+  M.reveal('#sc0', { type: 'fade', y: u * 0.8, duration: 0.5 }, 0.1);
+  M.reveal('#sc100', { type: 'fade', y: u * 0.8, duration: 0.5 }, 0.55);
+  M.reveal('#sc62', { type: 'fade', y: u * 0.8, duration: 0.5 }, 0.8);
+  M.scene('#phA', 0, T.land).scene('#phB', T.land);
+  M.reveal('#phA', { type: 'fade', y: 0, duration: 0.5 }, 0.1);
+
+  // ── 2 상승 (1.6–3.95s): 숫자와 눈금이 같은 감속으로 62 → 96. 숫자는 오르면서 밝아진다 ──
+  M.count('#n', { from: A, to: B, duration: T.dur, ease: 'mo.cam' }, T.count);
+  tl.fromTo('#n', { opacity: 0.72 }, { opacity: 1, duration: T.dur, ease: 'mo.cam' }, T.count);
+  tl.to('#phA', { opacity: 0.45, duration: 0.4, ease: 'power1.out' }, T.count);                // 'BEFORE'는 떠나는 순간 흐려진다
+  cam.to({ zoom: 1.045, ry: -3, rx: 1.2, duration: 2.8 }, T.count);
+
+  // ── 3 착지 (3.95s): "96"이 뜨는 순간 숫자 펄스, 마지막 칸의 물마루, 빛이 한 번 밝아졌다 가라앉는다 ──
+  M.pulse('#num', T.land, { scale: 1.035, duration: 0.6 });
+  tl.to(fx, { flash: 1, duration: 0.16, ease: 'power2.out' }, T.land);
+  tl.to(fx, { flash: 0, duration: 1.0, ease: 'power2.out' }, T.land + 0.16);
+  M.scramble('#phB', { duration: 0.5, chars: 'ABCDEFGHJKLMNPQRSTUVWXYZ' }, T.land);            // 수치 영상이라 해독 글자에서 숫자·기호를 뺀다
+
+  // ── 4 해석 (4.4–5.8s): 민트 구간 바로 위에 한 줄. 형광펜 색 = 늘어난 눈금의 색 ──
+  M.reveal('#cap', { type: 'words' }, T.land + 0.45);
+  M.highlight('#capHl', { duration: 0.55 }, T.land + 1.3);
+
+  // ── 5 홀드 (5.8–8s): 새 요소 없이 빛만 한 번 훑고, 카메라는 정면으로 아주 천천히 돌아온다 ──
+  cam.to({ ry: 0, rx: 0, zoom: 1.03, duration: 3.55, ease: 'sine.inOut' }, T.count + 2.8);
+  tl.to(fx, { glint: 1.2, duration: 1.1, ease: 'sine.inOut' }, 5.9);                         // 7.0초에 끝난다 — 마지막 1초는 그대로
+});
+</script>
+</body>
+</html>

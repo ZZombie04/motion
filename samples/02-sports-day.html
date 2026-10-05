@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>가을 운동회 — 홍보 쇼츠 오프닝</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 요청: "우리 학교 가을 운동회 홍보 쇼츠 오프닝 만들어줘. 10월 23일 금요일이고, 신나게."
+     로그라인  주황 점 하나가 출발 신호로 터져 달리고·뛰고·던져진 끝에 "10.23"의 소수점으로 착지한다
+     룩        ink ↔ pop(orange) 반전 4번 · 아주 큰 Pretendard 900(달릴 땐 기울임) · 가는 흰 레인 선 · 포인트는 점 하나
+     비트      0–1.4 "준비"+신호등 3박 → 1.4 "땅!" → 박마다 "달리고·뛰고·던지고" → 3.27 "함께" → 4.2 "가을 운동회"+트랙 → 6.07 스톱워치 00.00→"10.23" · FRI · "10월 23일 금요일" → 홀드
+     박자      128.57BPM(한 박 = 14프레임). 학교명·연도·로고는 받지 않았으므로 넣지 않았다 */
+  .mo-scene { overflow: visible; }
+  #sTogether { z-index: 10; }
+  .corner { position: absolute; top: var(--safe-t); font-size: calc(var(--u) * 2.15); }
+  .corner.l { left: var(--safe-x); }
+  .corner.r { right: var(--safe-x); }
+
+  /* 큰 글자 — 서 있을 때는 바로, 달릴 때는 기울인다(.it). 검정 장면의 글자는 모두 같은 밑선(43.2%)에 선다 */
+  .word { position: absolute; left: var(--safe-x); top: calc(43.2% - 1em); margin: 0; font-weight: 900; line-height: 1; letter-spacing: -0.045em; white-space: nowrap; transform-origin: 50% 55%; }
+  .w2 { font-size: calc(var(--u) * 47); }
+  .w3 { font-size: calc(var(--u) * 32); }
+  .word.c { left: 0; right: 0; top: calc(45% - 0.5em); text-align: center; }
+  #wGo { font-size: calc(var(--u) * 66); }
+  #wReady { top: 27.4%; font-size: calc(var(--u) * 50); }
+  .mask { display: block; overflow: hidden; padding: 0.04em 0.07em 0.05em; margin: -0.04em -0.07em -0.05em; }
+  .mask > span { display: block; }
+
+  /* 주황 면(pop) — 평평하지 않게 가운데가 살짝 밝다. 흔들려도 가장자리가 드러나지 않게 넉넉히 */
+  .field { position: absolute; inset: -12%; background: radial-gradient(ellipse 78% 56% at 50% 42%, color-mix(in oklab, var(--accent) 84%, #fff) 0%, var(--accent) 62%, color-mix(in oklab, var(--accent) 95%, #000) 100%); }
+
+  /* 출발 신호등 */
+  #lights { position: absolute; left: var(--safe-x); top: calc(27.4% + var(--u) * 56.4); display: flex; align-items: center; gap: calc(var(--u) * 2.2); }
+  .lt { position: relative; width: calc(var(--u) * 6); height: calc(var(--u) * 6); border-radius: 50%; box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--fg-4); }
+  .lt b, .lt em { position: absolute; inset: 0; border-radius: 50%; }
+  .lt b { background: var(--accent); }
+  .lt em { box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--accent); opacity: 0; }
+  #lights .mo-label { margin-left: calc(var(--u) * 1.2); font-size: calc(var(--u) * 2.15); }
+
+  /* 트랙: 선 여섯 줄 = 레인 다섯. 점은 가운데 레인을 달린다 */
+  .lane { position: absolute; left: -6%; width: 112%; top: calc(var(--y0) + var(--i) * var(--u) * 7.4); height: calc(var(--u) * 0.24); margin-top: calc(var(--u) * -0.12); background: var(--fg); transform-origin: 0 50%; }
+  #sRun { --y0: 47.1%; }
+  #sEnd { --y0: 55.2%; }
+  .trail { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .trail path { fill: none; stroke: var(--fg); stroke-width: calc(var(--u) * 0.24); stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+  #dot, #ring { position: absolute; left: 0; top: 0; width: calc(var(--u) * 6); height: calc(var(--u) * 6); margin: calc(var(--u) * -3) 0 0 calc(var(--u) * -3); border-radius: 50%; z-index: 20; visibility: hidden; }
+  #dot { background: var(--accent); }
+  #ring { box-shadow: inset 0 0 0 calc(var(--u) * 0.36) var(--accent); }
+
+  /* 제목 → 날짜 */
+  #ttl { position: absolute; left: var(--safe-x); top: 15%; margin: 0; font-size: calc(var(--u) * 32); font-weight: 900; line-height: 1.05; letter-spacing: -0.045em; white-space: nowrap; transform-origin: 0 0; }
+  #num { position: absolute; left: var(--safe-x); top: 38.2%; margin-left: -0.073em; overflow: hidden; padding: 0.05em 0 0.03em; font-family: var(--font-latin); font-weight: 900; font-size: calc(var(--u) * 31.5); line-height: 0.8; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; }
+  #numIn { display: flex; align-items: baseline; }
+  #pt { display: inline-block; flex: none; width: 0.23em; height: 0.19em; margin-left: 0.045em; }
+  #kdate { position: absolute; left: var(--safe-x); top: 57.9%; margin: 0; font-size: calc(var(--u) * 6.2); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; white-space: nowrap; }
+  #kdate .mo-latin { letter-spacing: -0.02em; }
+  #fri { position: absolute; right: var(--safe-x); top: 31%; font-family: var(--font-latin); font-size: calc(var(--u) * 4); font-weight: 800; letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+<div id="stage" data-title="가을 운동회 — 홍보 쇼츠 오프닝" data-width="1080" data-height="1920" data-fps="30" data-duration="9.8" data-theme="ink" data-accent="orange" data-platform="shorts">
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-glow" id="warm" style="left:50%;top:45%;--s:calc(var(--u)*130);--a:.17"></div>
+  </div>
+
+  <div class="mo-world">
+    <!-- 0 준비 -->
+    <section class="mo-scene" id="sReady">
+      <p class="mo-label corner l">Autumn Sports Day</p><p class="mo-label corner r">Ready</p>
+      <h1 class="word w2" id="wReady"><span class="mask"><span>준비</span></span></h1>
+      <div id="lights"><i class="lt"><b></b><em></em></i><i class="lt"><b></b><em></em></i><i class="lt"><b></b><em></em></i><span class="mo-label">On your marks</span></div>
+    </section>
+
+    <!-- 1 땅! -->
+    <section class="mo-scene" id="sGo" data-theme="pop">
+      <div class="field"></div>
+      <p class="mo-label corner l">Autumn Sports Day</p><p class="mo-label corner r">Go</p>
+      <h1 class="word c it" id="wGo">땅!</h1>
+    </section>
+
+    <!-- 2 달리고 — 가로 -->
+    <section class="mo-scene" id="sRun">
+      <p class="mo-label corner l">Autumn Sports Day</p><p class="mo-label corner r">01 · Run</p>
+      <h1 class="word w3 it" id="wRun">달리고</h1>
+      <i class="lane" style="--i:0"></i><i class="lane" style="--i:1"></i><i class="lane" style="--i:2"></i><i class="lane" style="--i:3"></i><i class="lane" style="--i:4"></i><i class="lane" style="--i:5"></i>
+    </section>
+
+    <!-- 3 뛰고 — 세로 -->
+    <section class="mo-scene" id="sJump">
+      <p class="mo-label corner l">Autumn Sports Day</p><p class="mo-label corner r">02 · Jump</p>
+      <h1 class="word w2 it" id="wJump"><span class="mask"><span>뛰고</span></span></h1>
+      <svg class="trail"><path id="pJump" pathLength="1"/></svg>
+    </section>
+
+    <!-- 4 던지고 — 깊이 -->
+    <section class="mo-scene" id="sThrow">
+      <p class="mo-label corner l">Autumn Sports Day</p><p class="mo-label corner r">03 · Throw</p>
+      <h1 class="word w3 it" id="wThrow">던지고</h1>
+      <svg class="trail"><path id="pThrow" pathLength="1"/></svg>
+    </section>
+
+    <!-- 5 함께 -->
+    <section class="mo-scene" id="sTogether" data-theme="pop">
+      <div class="field"></div>
+      <p class="mo-label corner l">Autumn Sports Day</p><p class="mo-label corner r">04 · Together</p>
+      <h1 class="word w2 c it" id="wTog">함께</h1>
+    </section>
+
+    <!-- 6 제목 → 날짜 -->
+    <section class="mo-scene" id="sEnd">
+      <p class="mo-label corner l">Autumn Sports Day</p><p class="mo-label corner r">Save the date</p>
+      <h1 id="ttl"><span class="mask"><span>가을</span></span><span class="mask"><span>운동회</span></span></h1>
+      <span class="mo-chip solid" id="fri">FRI</span>
+      <div id="num"><div id="numIn"><span id="nA">00</span><i id="pt"></i><span id="nB">00</span></div></div>
+      <i class="lane" style="--i:0"></i><i class="lane" style="--i:1"></i><i class="lane" style="--i:2"></i><i class="lane" style="--i:3"></i><i class="lane" style="--i:4"></i><i class="lane" style="--i:5"></i>
+      <p id="kdate"><span class="mo-latin">10</span>월 <span class="mo-latin">23</span>일 금요일</p>
+    </section>
+
+    <i id="ring"></i>
+    <i id="dot"></i>
+  </div>
+
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H } = M;
+  const b = M.beats(900 / 7);            // 128.57BPM — 30fps에서 한 박이 정확히 14프레임이라 컷이 프레임 정각에 떨어진다
+  const T = { go: b(3), run: b(4), jump: b(5), thr: b(6), tog: b(7), title: b(9), date: b(13) };
+  const clamp = (v, a, z) => Math.min(z, Math.max(a, v));
+  const R = u * 3;                        // 점의 반지름
+  const laneMid = (scene) => (M.rect(`${scene} .lane:nth-of-type(3)`).cy + M.rect(`${scene} .lane:nth-of-type(4)`).cy) / 2;   // 가운데 레인의 중심선
+
+  // ── 무대: 검정 위 옅은 조명. 느린 푸시와 손떨림이 끝까지 깔린다 ──
+  M.grain();
+  cam.drift({ zoom: 1.035 });
+  cam.float({ rot: 0.22, pos: u * 0.25, period: 9 });
+  gsap.set('.it', { skewX: -9 });
+  tl.fromTo('#warm', { opacity: 0 }, { opacity: 1, duration: 1.4, ease: 'none' }, T.title);
+
+  // ── 0 준비 (0–1.4s): 첫 프레임부터 솟는 중. 신호등이 박마다 켜지고, 카메라도 박마다 한 단계씩 정면으로 ──
+  M.scene('#sReady', 0, T.go);
+  cam.set({ rx: 8, ry: -10, zoom: 1.04 });
+  cam.to({ rx: 4, ry: -5, zoom: 1.02, duration: 0.34, ease: 'mo.snap' }, b(1));
+  cam.to({ rx: 0, ry: 0, zoom: 1, duration: 0.34, ease: 'mo.snap' }, b(2));
+  tl.from('#wReady .mask > span', { yPercent: 30, duration: 0.55, ease: 'mo.out' }, 0);
+  M.$$('.lt').forEach((lt, i) => {
+    tl.from(lt.querySelector('b'), { scale: 0, duration: 0.42, ease: 'mo.pop' }, b(i));
+    tl.fromTo(lt.querySelector('em'), { scale: 1, opacity: 0.8 }, { scale: 2, opacity: 0, duration: 0.45, ease: 'mo.out', immediateRender: false }, b(i));
+  });
+
+  // ── 1 땅! (1.4s): 세 번째 신호등이 화면을 덮는다. 박 직전 3프레임에 부풀어 박 정각에 가득 찬다 ──
+  const l3 = M.rect(M.$$('.lt')[2]);
+  M.transition('iris', '#sReady', '#sGo', { at: T.go - 0.1, x: l3.cx, y: l3.cy, duration: 0.1, ease: 'power3.in' });
+  M.scene('#wGo', T.go, T.run);
+  tl.fromTo('#wGo', { scale: 1.5 }, { scale: 1, duration: 0.3, ease: 'mo.snap' }, T.go);
+  tl.to('#wGo', { scale: 1.04, duration: b.len - 0.3, ease: 'none' }, T.go + 0.3);
+  cam.shake({ amp: u * 1.2, duration: 0.32 }, T.go);
+
+  // ── 2–4 박자 컷 (1.87–3.27s): 글자는 가로·세로·깊이 세 축으로 들어오고, 점은 매 박 화면을 가로지른다 ──
+  M.transition('cut', '#sGo', '#sRun', { at: T.run });
+  tl.fromTo('#wRun', { x: -W * 0.36, skewX: -22 }, { x: 0, skewX: -9, duration: 0.3, ease: 'mo.snap' }, T.run);              // 가로: 옆에서 달려든다
+  const laneDur = [0.46, 0.41, 0.385, 0.375, 0.42, 0.465], dotDur = 0.36;                                                  // 선 여섯 줄의 경주 — 점이 가장 빠르다
+  M.$$('#sRun .lane').forEach((ln, i) => tl.fromTo(ln, { scaleX: 0 }, { scaleX: 1, duration: laneDur[i], ease: 'none' }, T.run));
+
+  M.transition('cut', '#sRun', '#sJump', { at: T.jump });
+  M.$$('.trail').forEach((svg) => svg.setAttribute('viewBox', `0 0 ${W} ${H}`));                                             // 궤적 좌표 = 무대 px
+  M.$('#pJump').setAttribute('d', `M ${-R * 2.2} ${H * 0.677} Q ${W * 0.218} ${H * 0.323} ${W * 0.5} ${H * 0.677} Q ${W * 0.782} ${H * 0.323} ${W + R * 2.2} ${H * 0.677}`);   // 두 번 뛴다
+  tl.from('#wJump .mask > span', { yPercent: 44, duration: 0.24, ease: 'mo.snap' }, T.jump);                                // 세로: 바닥에서 솟는다
+
+  M.transition('cut', '#sJump', '#sThrow', { at: T.thr });
+  tl.fromTo('#wThrow', { scale: 0.42 }, { scale: 1, duration: 0.3, ease: 'mo.snap' }, T.thr);                              // 깊이: 멀리서 날아온다
+
+  // ── 5 함께 (3.27–4.2s): 던져진 점이 떨어진 자리에서 주황이 다시 열린다. 2박 홀드 ──
+  const land = [W * 0.74, laneMid('#sEnd')];                                                                               // 착지점 = 뒤에 나올 트랙의 가운데 레인
+  M.$('#pThrow').setAttribute('d', `M ${-R * 2.2} ${H * 0.7} Q ${W * 0.36} ${H * 0.292} ${land[0]} ${land[1]}`);
+  const FULL = Math.hypot(land[0], land[1]) + u * 4, closed = T.title + 0.34;
+  const circ = (r) => `circle(${r.toFixed(1)}px at ${land[0].toFixed(1)}px ${land[1].toFixed(1)}px)`;
+  M.scene('#sThrow', T.thr, T.tog).scene('#sTogether', T.tog - 0.1, closed).scene('#wTog', T.tog, closed);
+  tl.fromTo('#sTogether', { clipPath: circ(R) }, { clipPath: circ(FULL), duration: 0.1, ease: 'power3.in' }, T.tog - 0.1);
+  tl.fromTo('#wTog', { scale: 1.5 }, { scale: 1, duration: 0.3, ease: 'mo.snap' }, T.tog);
+  tl.to('#wTog', { scale: 1.04, duration: b(2) - 0.3, ease: 'none' }, T.tog + 0.3);
+  cam.shake({ amp: u * 1.2, duration: 0.28 }, T.tog);
+  cam.to({ zoom: 1.05, duration: b(2), ease: 'none' }, T.tog);
+
+  // ── 6 제목 (4.2–6.07s): 주황이 점 하나로 닫히고(아이리스), 그 뒤에서 "가을 / 운동회"가 솟는다. 트랙이 그려진다 ──
+  M.scene('#sEnd', T.title);
+  tl.to('#sTogether', { clipPath: circ(R), duration: 0.34, ease: 'mo.swift' }, T.title);
+  tl.to('#wTog', { scale: 2.3, opacity: 0, duration: 0.16, ease: 'power2.in' }, T.title);                                   // 글자는 카메라 쪽으로 지나가 버린다
+  cam.to({ zoom: 1, duration: 1.2, ease: 'mo.out' }, T.title);
+  tl.from('#ttl .mask > span', { yPercent: 112, duration: 0.75, ease: 'mo.out', stagger: 0.1 }, T.title + 0.06);
+  tl.fromTo('#sEnd .lane', { scaleX: 0 }, { scaleX: 1, duration: 0.62, ease: 'mo.inOut', stagger: 0.045 }, T.title + 0.18);
+
+  // ── 7 날짜 (6.07s–): 제목은 작은 머리말로, 트랙은 밑줄 하나로. 스톱워치가 00.00 → 10.23에서 멈춘다 ──
+  const ttl = M.rect('#ttl'), sx = ttl.x;
+  tl.to('#ttl', { y: H * 0.2286 - ttl.y, scale: 0.36, duration: 0.6, ease: 'mo.inOut' }, T.date - 0.3);                     // 같은 제목이 물러나 머리말이 된다
+  tl.to('#sEnd .lane', { top: H * 0.5615, left: sx, width: W - sx * 2, duration: 0.7, ease: 'mo.inOut', stagger: 0.03 }, T.date - 0.12);
+  const stop = T.date + 0.1 + 1.2;
+  M.scene('#num', T.date + 0.08);
+  tl.from('#numIn', { yPercent: 108, duration: 0.6, ease: 'mo.out' }, T.date + 0.08);
+  const clock = { v: 0 }, nA = M.$('#nA'), nB = M.$('#nB'), two = (n) => String(n).padStart(2, '0');
+  tl.to(clock, { v: 10.23, duration: 1.2, ease: 'power3.out' }, T.date + 0.1);
+  M.onFrame(() => {
+    const c = Math.round(clock.v * 100), a = two(Math.floor(c / 100)), f = two(c % 100);
+    if (nA.textContent !== a) nA.textContent = a;
+    if (nB.textContent !== f) nB.textContent = f;
+  });
+  M.pulse('#numIn', stop, { scale: 1.035 });
+  tl.to('#warm', { '--a': 0.36, duration: 0.14, ease: 'power2.out' }, stop).to('#warm', { '--a': 0.2, duration: 0.9, ease: 'mo.out' }, stop + 0.14);   // 멈춘 순간 빛이 한 번 반응한다
+  M.reveal('#fri', { type: 'pop' }, stop + 0.06);
+  M.reveal('#kdate', { type: 'words', duration: 0.7 }, b(16));
+
+  // 착지의 파문 — 멈춘 순간 한 번, 홀드 동안 박마다 세 번(처음의 신호등 세 개와 운을 맞춘다 → 루프)
+  const pt = M.rect('#pt'), beats = [stop, b(18), b(19), b(20)];
+  gsap.set('#ring', { x: pt.cx, y: pt.cy });
+  M.scene('#ring', stop);
+  beats.forEach((at, i) => tl.fromTo('#ring', { scale: 1, opacity: i ? 0.7 : 0.95 }, { scale: i ? 2.4 : 3.2, opacity: 0, duration: i ? 0.45 : 0.7, ease: 'mo.out', immediateRender: false }, at));
+
+  // ── 점: 위치는 시간의 함수(트윈이 아니다). 달리고 → 두 번 뛰고 → 포물선으로 던져지고 → 소수점에 앉는다 ──
+  const dot = M.$('#dot'), pJump = M.$('#pJump'), pThrow = M.$('#pThrow');
+  const along = (path) => { const len = path.getTotalLength(); return (p) => { const q = path.getPointAtLength(len * p); return [q.x, q.y]; }; };
+  const runY = laneMid('#sRun'), roll = [land[0] + u * 5, land[1]], hopC = [roll[0] - u * 16, pt.cy - u * 4];
+  const moves = [
+    { t0: T.run, d: dotDur, at: (p) => [-R * 2 + (W + R * 4) * p, runY] },
+    { t0: T.jump, d: 0.42, at: along(pJump), trail: pJump },
+    { t0: T.thr, d: b.len - 0.1, at: along(pThrow), trail: pThrow },
+    { t0: closed, d: T.date - 0.34 - closed, at: (p) => [land[0] + (roll[0] - land[0]) * p, land[1]] },                    // 제목이 서 있는 동안에도 레인 위를 천천히 구른다
+    { t0: T.date - 0.34, d: 0.42, at: (p) => { const q = 1 - p; return [q * q * roll[0] + 2 * q * p * hopC[0] + p * p * pt.cx, q * q * roll[1] + 2 * q * p * hopC[1] + p * p * pt.cy]; } }
+  ];
+  M.onFrame((t) => {
+    let m = null;
+    for (const mv of moves) {
+      if (t >= mv.t0 - 1e-6) m = mv;
+      if (mv.trail) mv.trail.style.strokeDashoffset = (1 - clamp((t - mv.t0) / mv.d, 0, 1)).toFixed(4);
+    }
+    const hidden = !m || (t >= T.tog - 0.1 - 1e-6 && t < closed - 1e-6);            // 주황 면 속에서는 점이 곧 화면이다
+    dot.style.visibility = hidden ? 'hidden' : 'visible';
+    if (!m) return;
+    const [x, y] = m.at(clamp((t - m.t0) / m.d, 0, 1)), born = 1 - clamp((t - T.run) / 0.14, 0, 1);
+    let s = 1 + born * born * born * 3;                                               // 컷 직후: 주황 면이 점으로 줄어든 것처럼
+    for (const at of beats) { const p = (t - at) / 0.4; if (p >= 0 && p < 1) s += 0.22 * (1 - p) * (1 - p); }   // 박마다 한 번 두근
+    dot.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(${s.toFixed(4)})`;
+  });
+});
+</script>
+</body>
+</html>

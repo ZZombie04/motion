@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 훅 → 엔드카드 2장면 뼈대. 문구·수치·시간을 트리트먼트에 맞게 바꾼다. */
+  .cap { margin: 0; font-size: calc(var(--u) * 3); font-weight: 560; color: var(--fg-2); }
+  #hook, #end { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 30%; }
+  .big { display: flex; align-items: flex-end; overflow: hidden; padding: 0.06em 0 0.02em; margin: calc(var(--u) * 2) 0 calc(var(--u) * 3.4) calc(var(--u) * -0.9);
+         font-family: var(--font-latin); font-weight: 650; font-size: calc(var(--u) * 39); line-height: 0.82; letter-spacing: -0.065em; }
+  .big .d { display: inline-block; }
+  .big small { font-family: var(--font-sans); font-size: 0.27em; font-weight: 720; letter-spacing: -0.03em; margin: 0 0 0.3em 0.4em; line-height: 1; }
+  #end h1 { margin: calc(var(--u) * 3.4) 0 calc(var(--u) * 6); }
+  #cta { font-size: calc(var(--u) * 3.8); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}}>
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-dotgrid" style="opacity:.5"></div>
+    <div class="mo-horizon" id="hz" style="--hy:80%"></div>
+  </div>
+
+  <div class="mo-world">
+    <section id="hook">
+      <p class="cap" id="hkLabel">숫자를 설명하는 한 줄</p>
+      <div class="big"><span class="d">1</span><span class="d">2</span><span class="d" id="zero">0</span><small id="hkUnit">분</small></div>
+      <h2 class="mo-h2" id="hkQ">질문 한 줄, <span id="hkHl">핵심어</span>는 하나</h2>
+    </section>
+
+    <section id="end">
+      <p class="cap" id="endLabel">보조 정보</p>
+      <h1 class="mo-display">제목 첫 줄<br><span id="endHl">강조</span> 둘째 줄</h1>
+      <span class="mo-btn" id="cta">행동 유도 <i data-icon="arrow-up-right" data-stroke="2.3"></i></span>
+    </section>
+  </div>
+
+  <div class="mo-hud"><span class="mo-label tl">PROJECT</span><span class="mo-label tr">01 / 02</span></div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, D } = M;
+  const END = D * 0.55;                       // 엔드카드가 시작되는 시각
+
+  M.grain();
+  cam.drift({ zoom: 1.05 });
+  cam.float({ rot: 0.3 });
+  M.scene('#hook', 0, END + 0.35).scene('#end', END);
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, stagger: 0.1 }, 0);
+
+  // 훅: 비스듬한 화면이 바로 서며 숫자가 솟는다 — 0초에 이미 움직이는 중
+  cam.set({ rx: 9, ry: -12, zoom: 1.16 });
+  cam.to({ rx: 0, ry: 0, zoom: 1, duration: 2.3, ease: 'mo.out' }, 0);
+  tl.from('#hkLabel', { autoAlpha: 0.3, y: u * 1.5, duration: 0.6 }, 0);
+  tl.from('.big .d', { yPercent: 64, duration: 0.95, ease: 'mo.out', stagger: 0.08 }, 0);
+  tl.from('#hkUnit', { autoAlpha: 0, x: -u * 2, duration: 0.6 }, 0.42);
+  M.reveal('#hkQ', { type: 'words' }, 0.8);
+  M.highlight('#hkHl', { duration: 0.5 }, 1.6);
+
+  // 전환: 숫자 0의 안쪽을 뚫고 지나간다
+  const z = M.rect('#zero'), hk = M.rect('#hook');
+  tl.to('#hook', { scale: 15, transformOrigin: `${z.cx - hk.x}px ${z.cy - hk.y + u}px`, duration: 0.85, ease: 'power3.in' }, END - 0.45);
+  tl.to('#hook', { autoAlpha: 0, duration: 0.14 }, END + 0.2);
+
+  // 엔드카드: 제목을 충분히 오래
+  M.reveal('#endLabel', { type: 'fade' }, END + 0.35);
+  M.reveal('#end h1', { type: 'rise' }, END + 0.15);
+  M.highlight('#endHl', END + 1.05);
+  M.reveal('#cta', { type: 'pop' }, END + 0.95);
+});
+</script>
+</body>
+</html>

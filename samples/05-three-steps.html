@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AI에게 일 잘 시키는 3단계 — 유튜브 설명 컷</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 요청: "AI에게 일 잘 시키는 3단계를 설명하는 유튜브 영상용 컷 만들어줘. 역할 주기, 자료 주기, 형식 정하기 순서야."
+     세계는 가로로 아주 긴 입력창 한 줄이다. 카메라가 그 줄을 따라가며 세 조각을 차례로 보고, 끝에 물러나면 세 조각이 모여 한 문장이 된다.
+     크기는 "클로즈업(zoom 1)에서 보이는 크기"로 적었다 — 처음과 끝의 넓은 화면은 카메라가 물러나서 만든다. */
+
+  /* 입력창: 세계를 가로지르는 흰 띠 */
+  #bar { position: absolute; height: calc(var(--u) * 16); border-radius: calc(var(--u) * 8); background: var(--surface);
+         box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgba(var(--shade), 0.06),
+                     0 calc(var(--u) * 1.6) calc(var(--u) * 3.6) calc(var(--u) * -1.4) rgba(var(--shade), 0.13),
+                     0 calc(var(--u) * 6) calc(var(--u) * 12) calc(var(--u) * -4) rgba(var(--shade), 0.17); }
+  #ph { position: absolute; left: calc(var(--u) * 11); top: 0; height: 100%; margin: 0; display: flex; align-items: center; white-space: nowrap;
+        font-size: calc(var(--u) * 7); font-weight: 520; letter-spacing: -0.028em; color: var(--fg-3); }
+  #send { position: absolute; right: calc(var(--u) * 2.5); top: calc(var(--u) * 2.5); width: calc(var(--u) * 11); height: calc(var(--u) * 11); border-radius: 50%;
+          display: flex; align-items: center; justify-content: center; font-size: calc(var(--u) * 4.6); background: rgba(var(--tint), 0.07); color: var(--fg-3); }
+
+  /* 0 타이틀(넓은 화면용 — 글자 크기·자리는 스크립트가 입력창 폭에 맞춘다) */
+  #title { position: absolute; margin: 0; white-space: nowrap; text-align: center; font-weight: 760; line-height: 1.1; letter-spacing: -0.045em; }
+  #hl { margin-left: 0.13em; }
+
+  /* 단계 한 묶음: 번호 · 제목 · 한 줄 · 괄호 · 프롬프트 조각 — 세 번 똑같이 반복 */
+  .col { position: absolute; top: calc(var(--u) * 26.5); display: flex; flex-direction: column; align-items: center; white-space: nowrap; }
+  .col .no { font-size: calc(var(--u) * 2.7); }
+  .col .ttl { margin: calc(var(--u) * 1.4) 0 0; font-size: calc(var(--u) * 12.8); font-weight: 740; line-height: 1.1; letter-spacing: -0.042em; }
+  .col .help { margin: calc(var(--u) * 0.8) 0 0; font-size: calc(var(--u) * 4.2); line-height: 1.4; font-weight: 520; letter-spacing: -0.02em; color: var(--fg-2); }
+  .col .brk { align-self: flex-start; flex: none; width: 0; height: calc(var(--u) * 1.4); margin: calc(var(--u) * 3.2) 0 0 calc(var(--u) * -0.7); opacity: 0;
+              border: calc(var(--u) * 0.36) solid currentColor; border-bottom: 0; border-radius: calc(var(--u) * 0.7) calc(var(--u) * 0.7) 0 0; color: var(--accent); }
+  .col .part { position: relative; margin-top: calc(var(--u) * 5.3); font-size: calc(var(--u) * 7); line-height: 1.2; font-weight: 620; letter-spacing: -0.028em; }
+  .part .ghost { visibility: hidden; }                                   /* 완성된 문장의 폭만 차지한다 */
+  .part .typed { position: absolute; left: 0; top: 0; white-space: nowrap; }
+  .part .mo-typed { white-space: pre; }
+
+  /* 단계 뒤에 깔리는 아주 옅은 큰 숫자 */
+  .big { position: absolute; top: calc(var(--u) * 3.5); width: calc(var(--u) * 80); margin-left: calc(var(--u) * -40); text-align: center;
+         font-family: var(--font-latin); font-weight: 640; font-size: calc(var(--u) * 92); line-height: 1; letter-spacing: -0.04em; color: rgba(var(--tint), 0.045); }
+
+  /* 포인트 색 한 점: 형광펜 → 점 → 캐럿 → 대시 → 혜성 → 전송 버튼 */
+  #spark { position: absolute; left: 0; top: 0; background: var(--accent); visibility: hidden; }
+  #ring { position: absolute; width: calc(var(--u) * 11); height: calc(var(--u) * 11); margin: calc(var(--u) * -5.5) 0 0 calc(var(--u) * -5.5); border-radius: 50%;
+          border: calc(var(--u) * 0.4) solid var(--accent); opacity: 0; }
+
+  /* 우상단 미니맵: 세 조각이 채워지는 만큼 */
+  #map { display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 2.4); }
+  #map i { position: relative; display: block; height: calc(var(--u) * 0.44); border-radius: 99px; overflow: hidden; background: rgba(var(--tint), 0.15); --p: 0; }
+  #map i::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--fg); transform-origin: 0 50%; transform: scaleX(var(--p)); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="AI에게 일 잘 시키는 3단계" data-width="1920" data-height="1080" data-fps="30" data-duration="20" data-theme="paper" data-accent="red">
+  <div class="mo-bg">
+    <div class="mo-stagelight" style="opacity:.7"></div>
+    <div class="mo-dotgrid" id="dots" style="opacity:.55"></div>
+  </div>
+
+  <div class="mo-world">
+    <div id="nums" data-deco><span class="big">1</span><span class="big">2</span><span class="big">3</span></div>
+
+    <div id="bar">
+      <p id="ph">무엇을 시킬까요?</p>
+      <span id="send"><i data-icon="arrow-up" data-stroke="2.5"></i></span>
+    </div>
+
+    <h1 id="title">AI에게 일 잘 시키는 <span id="hl">3단계</span></h1>
+
+    <section class="col">
+      <p class="mo-label no">STEP 01</p>
+      <h2 class="ttl">역할 주기</h2>
+      <p class="help">맡을 역할을 먼저 알려 줍니다</p>
+      <i class="brk"></i>
+      <div class="part"><span class="ghost">너는 꼼꼼한 비서야.</span><span class="typed"></span></div>
+    </section>
+    <section class="col">
+      <p class="mo-label no">STEP 02</p>
+      <h2 class="ttl">자료 주기</h2>
+      <p class="help">참고할 자료를 함께 줍니다</p>
+      <i class="brk"></i>
+      <div class="part"><span class="ghost">첨부한 회의록을 읽고,</span><span class="typed"></span></div>
+    </section>
+    <section class="col">
+      <p class="mo-label no">STEP 03</p>
+      <h2 class="ttl">형식 정하기</h2>
+      <p class="help">받고 싶은 형식을 정합니다</p>
+      <i class="brk"></i>
+      <div class="part"><span class="ghost">할 일만 표로 정리해 줘.</span><span class="typed"></span></div>
+    </section>
+
+    <i id="ring"></i>
+    <i id="spark"></i>
+  </div>
+
+  <div class="mo-hud">
+    <span class="mo-label tl">How to prompt · 3 steps</span>
+    <div class="tr" id="map"><i></i><i></i><i></i></div>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W } = M, lerp = M.lerp, smooth = M.smooth;
+  const T = { hand: 2.3, step: [2.5, 6.8, 11.0], end: 15.2 };          // 형광펜이 걷히는 시각 · 단계 시작(카메라 출발) · 요약 시작
+  const TYPE = [1.1, 1.15, 1.3];                                       // 조각마다 타이핑 길이
+  const css = getComputedStyle(M.stage), ACC = css.getPropertyValue('--accent').trim(), ON = css.getPropertyValue('--on-accent').trim(), GRAY = css.getPropertyValue('--fg-3').trim();
+
+  // ── 세계 배치: 세 조각을 한 줄 위에 멀리 떨어뜨려 놓는다(클로즈업에서는 한 조각만 보이게) ──
+  const cols = M.$$('.col'), parts = cols.map((c) => c.querySelector('.part')), typed = cols.map((c) => c.querySelector('.typed')), brks = cols.map((c) => c.querySelector('.brk'));
+  const nums = M.$$('.big'), ticks = M.$$('#map i');
+  const w = parts.map((p) => p.offsetWidth);
+  const GAP = u * 74, JOIN = u * 3.4, padL = u * 11, padR = u * 25, barH = u * 16;   // 촬영 중 간격 · 모인 뒤 간격 · 입력창 안쪽 여백
+  const barW = padL + w[0] + GAP + w[1] + GAP + w[2] + padR, barL = W / 2 - barW / 2;
+  const x = [barL + padL, barL + padL + w[0] + GAP, barL + padL + w[0] + GAP + w[1] + GAP];
+  cols.forEach((c, i) => gsap.set(c, { left: x[i], width: w[i] }));
+  nums.forEach((n, i) => gsap.set(n, { left: x[i] + w[i] / 2 }));
+  ticks.forEach((k, i) => gsap.set(k, { width: (w[i] / (w[0] + w[1] + w[2])) * u * 15 }));
+  const lineY = M.rect(parts[0]).cy, barT = lineY - barH / 2;
+  gsap.set('#bar', { left: barL, width: barW, top: barT });
+  const cx = x.map((v, i) => v + w[i] / 2), cyStep = (M.rect(cols[0].querySelector('.no')).y + barT + barH) / 2;
+
+  const FIT = 0.85;                                                    // 넓은 화면에서 입력창이 차지하는 폭(좌우 --safe-x 안쪽)
+  const Z0 = (W * FIT) / barW, tf = (u * 12.6) / Z0;                   // 입력창 전체가 보이는 배율 · 그때 제목이 12.6u로 보이게
+  const titleT = barT - (u * 6.6) / Z0 - tf * 1.1, cyOpen = (titleT + barT + barH) / 2 + (u * 2) / Z0;   // 타이틀 묶음은 정중앙보다 살짝 위에
+  gsap.set('#title', { fontSize: tf, left: W / 2 - tf * 8, width: tf * 16, top: titleT });
+
+  // ── 무대: 종이 위의 은은한 조명. 카메라는 끝까지 아주 천천히 다가가고 손으로 든 듯 미세하게 흔들린다 ──
+  M.grain();
+  cam.drift({ zoom: 1.05 });
+  cam.float({ rot: 0.22, pos: u * 0.25, period: 11 });
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, duration: 0.5, stagger: 0.1 }, 0);
+  const dots = M.$('#dots');                                           // 종이의 점 격자는 카메라가 옆으로 달릴 때만 조금 따라 흐른다(먼 바닥의 패럴랙스)
+  M.onFrame(() => { dots.style.backgroundPosition = 'calc(50% - ' + ((cam.s.x - W / 2) * 0.16).toFixed(1) + 'px) calc(50% - ' + ((cam.s.y - cyStep) * 0.16).toFixed(1) + 'px)'; });
+  M.float(nums, { x: u * 0.5, y: u * 0.9, period: 8 });                // 큰 숫자는 제목 뒤에서 아주 느리게 떠 있다(긴 홀드에도 층이 살아 있게)
+
+  // ── 0 타이틀 (0–2.5s): 빈 입력창 위로 제목이 솟는다. 비스듬한 화면이 바로 서며 시작 ──
+  cam.set({ x: W / 2, y: cyOpen, zoom: Z0 * 1.05, rx: 6, ry: -4 });
+  cam.to({ zoom: Z0, rx: 0, ry: 0, duration: 2.3, ease: 'mo.out' }, 0);
+  const ts = M.split('#title', { by: 'lines' });
+  tl.from(ts.lines, { yPercent: 62, duration: 1.0, ease: 'mo.out' }, 0);                       // 0초에 이미 올라오는 중
+  M.highlight('#hl', { duration: 0.55 }, 1.0);
+  // 전환: 형광펜이 왼쪽으로 걷히며 점 하나로 남고, 그 점이 입력창으로 내려앉아 맨 앞까지 달려가 캐럿이 된다. 카메라가 그 뒤를 쫓는다
+  const tA = T.hand + 0.24, flyD = 0.8, tLand = tA + flyD;
+  tl.to('#hl', { '--p': 0, duration: 0.3, ease: 'mo.inOut' }, T.hand);
+  M.exit('#title', { type: 'rise', duration: 0.5 }, T.hand + 0.14);
+  M.scene('#title', 0, T.hand + 0.9);
+  tl.to('#ph', { autoAlpha: 0, duration: 0.3 }, T.hand + 0.35);
+  cam.to({ x: cx[0], y: cyStep, zoom: 1, rx: 1.8, ry: -5, duration: 1.55 }, T.step[0]);
+
+  // ── 1·2·3 단계 (2.5–15.2s): 같은 틀 세 번. 캐럿이 먼저 건너가고 카메라가 따라가면, 제목이 솟고 조각이 쳐진다 ──
+  const TEXT = parts.map((p) => p.querySelector('.ghost').textContent), typeAt = [], typeEnd = [];
+  cols.forEach((c, i) => {
+    const t0 = T.step[i], first = i === 0, next = i < 2 ? T.step[i + 1] : T.end;
+    if (!first) cam.to({ x: cx[i], rx: 1.8, ry: -5, duration: 1.25 }, t0 + 0.06);
+    const hold = t0 + (first ? 1.58 : 1.34);
+    cam.to({ ry: 4, rx: 0.6, duration: next - hold - 0.03, ease: 'sine.inOut' }, hold);        // 머무는 동안 천천히 돈다(멈추지 않는다)
+    const a = t0 + 0.3;
+    tl.from(nums[i], { autoAlpha: 0, duration: 0.9, ease: 'power1.out' }, a - 0.1);
+    M.reveal(c.querySelector('.no'), { type: 'fade', y: u * 1.2, duration: 0.6 }, a);
+    M.reveal(c.querySelector('.ttl'), { type: 'rise', duration: 0.95 }, a + 0.08);
+    M.reveal(c.querySelector('.help'), { type: 'fade', y: u * 1.4, duration: 0.7 }, a + 0.5);
+    typeAt[i] = t0 + 1.2;  typeEnd[i] = typeAt[i] + TYPE[i];
+    M.type(typed[i], TEXT[i], { duration: TYPE[i], caret: false }, typeAt[i]);                 // 캐럿은 아래의 빨간 점이 맡는다
+    M.exit(c.querySelector('.help'), { type: 'fade', duration: 0.32 }, next - 0.2);
+    tl.to(brks[i], { color: GRAY, duration: 0.4, ease: 'power1.out' }, next);                  // 다 쓴 조각의 괄호는 회색으로 물러난다
+  });
+
+  // ── 4 요약 (15.2–20s): 물러나면 세 조각이 한 줄 위에 있었다. 가운데로 모여 한 문장이 되고, 빨간 점이 괄호 위를 1→2→3 달려 전송 버튼을 켠다 ──
+  const dJ = GAP - JOIN, Zf = (W * FIT) / ((barW - dJ * 2) * 1.05), tJ = T.end + 0.25, join = { duration: 1.3, ease: 'mo.inOut' };   // 1.05 = 드리프트가 끝에서 곱하는 배율
+  cam.to({ x: W / 2, y: cyStep, zoom: Zf * 0.972, rx: 0, ry: 0, duration: 1.8 }, T.end + 0.05);
+  cam.to({ zoom: Zf, duration: M.D - (T.end + 1.9), ease: 'sine.out' }, T.end + 1.9);          // 요약 화면도 끝까지 아주 조금 다가간다
+  tl.to(cols[0], { left: x[0] + dJ, ...join }, tJ);
+  tl.to(cols[2], { left: x[2] - dJ, ...join }, tJ);
+  tl.to(nums[0], { left: cx[0] + dJ, ...join }, tJ);
+  tl.to(nums[2], { left: cx[2] - dJ, ...join }, tJ);
+  tl.to('#bar', { left: barL + dJ, width: barW - dJ * 2, ...join }, tJ);
+  const xj = [x[0] + dJ, x[1], x[2] - dJ];                                                     // 모인 뒤의 조각 자리
+  const tR = tJ + 1.35, runD = 0.8, tD = tR + runD, dropD = 0.3, tHit = tD + dropD;            // 달리기(조각이 다 모인 직후) · 떨어지기 · 버튼에 닿는 시각
+  const brkY = M.rect(brks[0]).y + u * 0.18, xs = xj[0] - u * 0.7, xe = xj[2] + w[2] + u * 0.7, bx = barL + barW - dJ - u * 8;
+  const ez = gsap.parseEase('mo.inOut'), inv = (f) => { let lo = 0, hi = 1; for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (ez(m) < f) lo = m; else hi = m; } return (lo + hi) / 2; };
+  cols.forEach((c, i) => {                                                                     // 점이 지나가는 괄호만 잠깐 붉어지고, 그 위 제목이 한 번 숨을 쉰다
+    const f0 = (xj[i] - u * 0.7 - xs) / (xe - xs), f1 = (xj[i] + w[i] + u * 0.7 - xs) / (xe - xs);
+    const t0 = tR + runD * inv(Math.max(0.002, f0)), t1 = tR + runD * inv(Math.min(0.998, f1));
+    tl.to(brks[i], { color: ACC, duration: 0.1, ease: 'none' }, t0);
+    tl.to(brks[i], { color: GRAY, duration: 0.45, ease: 'power1.out' }, Math.max(t1, t0 + 0.12));
+    M.pulse(c.querySelector('.ttl'), t0 + 0.03, { scale: 1.03, duration: 0.5 });
+  });
+  tl.set('#send', { backgroundColor: ACC, color: ON }, tHit);
+  tl.fromTo('#send', { scale: 1 }, { scale: 1.12, duration: 0.1, ease: 'power2.out', immediateRender: false }, tHit);
+  tl.to('#send', { scale: 1, duration: 0.5, ease: 'mo.spring' }, tHit + 0.1);
+  gsap.set('#ring', { left: bx, top: lineY });
+  tl.fromTo('#ring', { scale: 0.8, opacity: 0.7 }, { scale: 2.1, opacity: 0, duration: 0.8, ease: 'mo.out', immediateRender: false }, tHit);
+
+  // ── 빨간 점 하나가 끝까지 이어진다: 형광펜 → 점 → 캐럿 → 대시 → 혜성 → 전송 버튼. 모양과 자리는 시간의 함수로만 정한다 ──
+  const sp = { a: 0, j1: 0, j2: 0, r: 0, d: 0 };
+  tl.to(sp, { a: 1, duration: flyD, ease: 'mo.inOut' }, tA);
+  tl.to(sp, { j1: 1, duration: 0.62, ease: 'mo.inOut' }, T.step[1]);
+  tl.to(sp, { j2: 1, duration: 0.62, ease: 'mo.inOut' }, T.step[2]);
+  tl.to(sp, { r: 1, duration: runD, ease: 'mo.inOut' }, tR);
+  tl.to(sp, { d: 1, duration: dropD, ease: 'none' }, tD);
+  const hl = M.rect('#hl'), A = { x: hl.x - tf * 0.12, y: hl.y + tf * 0.06, w: (hl.w + tf * 0.24) * 0.05, h: hl.h - tf * 0.08, r: tf * 0.05 };   // 거의 다 걷힌 형광펜의 마지막 조각(글자 왼쪽 여백 안)
+  const cw = u * 0.5, ch = u * 8.6, cg = u * 0.5, bead = u * 2.4, landed = [tLand, T.step[1] + 0.62, T.step[2] + 0.62], spark = M.$('#spark');
+  M.onFrame((t) => {
+    const tw = typed.map((e) => (e.firstElementChild ? e.firstElementChild.offsetWidth : 0));
+    brks.forEach((b, i) => { b.style.width = (tw[i] + u * 1.4).toFixed(1) + 'px'; b.style.opacity = tw[i] > 2 ? 1 : 0; });   // 괄호는 쳐진 만큼 자란다
+    ticks.forEach((k, i) => k.style.setProperty('--p', (tw[i] / w[i]).toFixed(3)));
+    let on = false, X = 0, Y = lineY - ch / 2, Wd = cw, Hh = ch, R = cw / 2;
+    if (t >= tA && sp.a < 1) {                                        // 형광펜 조각 → 점 → (입력창 안을 달려) 캐럿
+      const p = sp.a, k1 = smooth(p / 0.1), k3 = smooth((p - 0.84) / 0.16), dot = lerp(u * 5.6, u * 3.4, p);
+      on = true;
+      Wd = lerp(lerp(A.w, dot, k1), cw, k3);  Hh = lerp(lerp(A.h, dot, k1), ch, k3);  R = lerp(lerp(A.r, dot / 2, k1), cw / 2, k3);
+      X = lerp(lerp(A.x + A.w / 2, A.x - u, k1), x[0] + cg + cw / 2, M.clamp((p - 0.08) / 0.92, 0, 1)) - Wd / 2;   // 글자 사이 틈에서 점이 된 뒤에 움직인다
+      Y = lerp(A.y + A.h / 2, lineY, 1 - Math.pow(1 - p, 4)) - Hh / 2;                         // 먼저 내려앉고, 그다음 달린다
+    } else if (t >= tA && t < T.end + 0.1) {
+      const i = t < T.step[1] ? 0 : t < T.step[2] ? 1 : 2, j = i === 1 ? sp.j1 : i === 2 ? sp.j2 : 1;
+      on = true;
+      if (j < 1) {                                                    // 다음 조각으로 건너뛴다: 길게 늘어난 대시
+        const s = Math.sin(Math.PI * j);
+        Wd = cw + s * u * 11;  Hh = ch * (1 - 0.74 * s);  R = Math.min(Wd, Hh) / 2;
+        X = lerp(x[i - 1] + w[i - 1] + cg, x[i] + cg, j) + cw - Wd;  Y = lineY - Hh / 2;
+      } else {
+        X = x[i] + tw[i] + cg;                                        // 치는 동안은 켜져 있고, 쉴 때만 깜박인다
+        const idle = t < typeAt[i] ? t - landed[i] : t - typeEnd[i];
+        if ((t < typeAt[i] || t > typeEnd[i]) && ((Math.max(0, idle) * 1.8) % 1) > 0.56) on = false;
+      }
+    } else if (t >= tR - 0.2 && t < tHit) {
+      on = true;
+      if (sp.d <= 0) {                                                // 괄호 위를 달리는 혜성
+        const p = sp.r, s = Math.sin(Math.PI * p);
+        Hh = bead * smooth((t - (tR - 0.2)) / 0.2) * (1 - 0.4 * s);  Wd = Hh + s * u * 15;  R = Hh / 2;
+        X = lerp(xs, xe, p) + Hh / 2 - Wd;  Y = brkY - Hh / 2;
+      } else {                                                        // 전송 버튼으로 떨어지며 버튼 크기로 커진다
+        const q = sp.d;
+        Wd = Hh = lerp(bead, u * 11, smooth((q - 0.3) / 0.7));  R = Wd / 2;
+        X = lerp(xe, bx, q) - Wd / 2;  Y = lerp(brkY, lineY, q * q) - Hh / 2;
+      }
+    }
+    spark.style.visibility = on ? 'visible' : 'hidden';
+    if (on) { spark.style.width = Wd.toFixed(2) + 'px'; spark.style.height = Hh.toFixed(2) + 'px'; spark.style.borderRadius = R.toFixed(2) + 'px'; spark.style.transform = 'translate3d(' + X.toFixed(2) + 'px,' + Y.toFixed(2) + 'px,0)'; }
+  });
+});
+</script>
+</body>
+</html>

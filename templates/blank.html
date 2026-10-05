@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 장면 전용 스타일. 크기는 calc(var(--u) * n) — 1u = 캔버스 짧은 변의 1%. */
+  .title { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 38%; }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}}>
+  <div class="mo-bg"><div class="mo-spot"></div></div>
+
+  <div class="mo-world">
+    <div class="title">
+      <p class="mo-label" id="kicker">KICKER · 01</p>
+      <h1 class="mo-h1" id="headline">한 문장으로 말하는<br><span id="hl">핵심 메시지</span></h1>
+      <p class="mo-body" id="sub">보조 문장은 한 줄로 짧게.</p>
+    </div>
+  </div>
+
+  <div class="mo-hud">
+    <span class="mo-label tl">PROJECT</span>
+    <span class="mo-label tr">2026</span>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam } = M;
+  M.grain();                       // 필름 그레인(어두운 그라디언트 밴딩 방지 겸용)
+  cam.drift({ zoom: 1.045 });      // 처음부터 끝까지 아주 느린 푸시 인 — 화면이 멈춰 보이지 않게
+
+  M.reveal('#kicker', { type: 'fade' }, 0.2);
+  M.reveal('#headline', { type: 'rise' }, 0.35);
+  M.highlight('#hl', 1.35);
+  M.reveal('#sub', { type: 'fade' }, 1.6);
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, stagger: 0.1 }, 0.1);
+});
+</script>
+</body>
+</html>

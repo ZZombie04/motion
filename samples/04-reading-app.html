@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>함께 읽는 도서관 — 앱 소개</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 요청: "'함께 읽는 도서관'이라는 독서 앱 소개 영상 만들어줘. 폰 화면에서 책 추천받는 장면이 들어가면 좋겠어." */
+
+  .mo-hud .mo-label { font-size: calc(var(--u) * 2.15); }
+  #ground { left: 50%; top: 86.1%; width: calc(var(--u) * 60); height: calc(var(--u) * 7); margin-left: calc(var(--u) * -30); }
+
+  /* 1 훅 — 질문 한 줄 + 돌아서는 폰 */
+  #hookQ { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 13.4%; margin: 0; text-align: center;
+           font-size: calc(var(--u) * 12.4); line-height: 1.1; font-weight: 780; letter-spacing: -0.045em; }
+
+  /* 폰. 화면 속 치수는 전부 --p(폰 폭의 1%) 기준.
+     폰은 "가장 가까이 볼 때의 크기"(폭 100u)로 만들고, 넓은 샷에서는 줄여(scale 0.5) 보여 준다 — 확대가 아니라 축소라 미리보기에서도 항상 또렷하다.
+     (기울인 화면을 카메라로 확대해도 렌더러가 그 구간을 2–3배로 찍어 선명하게 만들지만, 클로즈업이 주인공인 영상은 크게 만들어 두는 편이 확실하다.)
+     옆면 조각은 절반만 그린다(큰 레이어 수를 줄인다. 줄여 보이는 배율에서는 간격이 원래와 같다). */
+  #ph, #fly { --p: calc(var(--pw) / 100); }
+  #ph { --pw: calc(var(--u) * 100); position: absolute; left: calc(var(--W) / 2 - var(--pw) / 2); top: calc(var(--H) / 2 - var(--pw) * 19.3 / 18); }
+  #ph > .mo-phone-edge:nth-child(2n) { display: none; }
+  /* 판을 줄였으니 옆에서 볼 때 줄무늬가 비친다 → 곧은 구간에는 진짜 옆면(90° 세운 벽)을 댄다 */
+  #ph > .wall { position: absolute; top: calc(var(--pw) * 0.15); bottom: calc(var(--pw) * 0.15); width: calc(var(--pw) * 0.0417);
+                background: linear-gradient(90deg, #5f6069 0%, #2a2b30 14%, #18181b 50%, #2a2b30 86%, #5f6069 100%); }
+  #ph > .wall.l { left: 0; transform-origin: 0 50%; transform: rotateY(90deg); }
+  #ph > .wall.r { right: 0; transform-origin: 100% 50%; transform: rotateY(-90deg); }
+  .mo-tap { width: calc(var(--u) * 12); height: calc(var(--u) * 12); margin: calc(var(--u) * -6) 0 0 calc(var(--u) * -6); }
+  #scr { font-size: calc(var(--p) * 3.6); line-height: 1.3; letter-spacing: -0.02em; font-weight: 560; }
+  #scrOff { position: absolute; inset: 0; background: #050506; z-index: 6; }
+  .sbr { display: flex; align-items: center; gap: 0.32em; font-size: calc(var(--p) * 4.7); }
+
+  #appbar { position: absolute; left: calc(var(--p) * 6); right: calc(var(--p) * 6); top: calc(var(--p) * 17); height: calc(var(--p) * 9); display: flex; align-items: center; justify-content: space-between; }
+  #appbar b { font-size: calc(var(--p) * 4); font-weight: 760; letter-spacing: -0.035em; }
+  #appbar .ic { display: flex; gap: calc(var(--p) * 3.4); font-size: calc(var(--p) * 4.6); }
+  #hello { position: absolute; left: calc(var(--p) * 6); top: calc(var(--p) * 36.6); margin: 0; font-size: calc(var(--p) * 3.6); font-weight: 580; color: var(--fg-2); }
+  .q { position: absolute; left: calc(var(--p) * 6); right: calc(var(--p) * 6); top: calc(var(--p) * 41.4); margin: 0; font-size: calc(var(--p) * 7.2); line-height: 1.2; font-weight: 760; letter-spacing: -0.04em; }
+
+  /* 책장: 빈 칸 3개 → 표지 3권(가운데가 크고 양옆은 뒤로 물러난 배치) */
+  .slot, .cv { position: absolute; border-radius: calc(var(--p) * 2.4); }
+  .side { top: calc(var(--p) * 72.25); width: calc(var(--p) * 30); height: calc(var(--p) * 42.5); }
+  .side.l { left: calc(var(--p) * 6); }
+  .side.r { left: calc(var(--p) * 58); }
+  .slot { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+  #slB { left: calc(var(--p) * 29); top: calc(var(--p) * 68); width: calc(var(--p) * 36); height: calc(var(--p) * 51); z-index: 1; background: var(--surface);
+         box-shadow: inset 0 0 0 1px var(--line-2), 0 calc(var(--p) * 1.6) calc(var(--p) * 4) calc(var(--p) * -1.6) rgba(var(--shade), 0.2);
+         display: flex; align-items: center; justify-content: center; font-size: calc(var(--p) * 7); color: var(--fg-4); }
+  .cv { overflow: hidden; z-index: 2; box-shadow: 0 calc(var(--p) * 1.4) calc(var(--p) * 3.6) calc(var(--p) * -1.4) rgba(var(--shade), 0.3); }
+  #cvA { background: var(--fg); color: var(--bg); }
+  #cvC { background: var(--surface); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line-2), 0 calc(var(--p) * 1.4) calc(var(--p) * 3.6) calc(var(--p) * -1.4) rgba(var(--shade), 0.3); }
+  .cvin { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .cvk { position: absolute; top: calc(var(--p) * 3.3); font-family: var(--font-mono); font-size: calc(var(--p) * 2.4); font-weight: 600; letter-spacing: 0.12em; line-height: 1; opacity: 0.62; white-space: nowrap; }
+  .cvt { position: absolute; bottom: calc(var(--p) * 3.3); font-size: calc(var(--p) * 4.6); font-weight: 800; letter-spacing: -0.045em; line-height: 1.14; }
+  .cvin svg { position: absolute; fill: none; stroke: currentColor; overflow: visible; }
+  #cvA .cvk, #cvA .cvt { left: calc(var(--p) * 2.9); }
+  #cvC .cvk, #cvC .cvt { right: calc(var(--p) * 2.9); text-align: right; }
+
+  /* 포인트 색 사각형 하나: 버튼 → 가운데 표지 → (세계로 나와) 화면 전체 → 엔드카드의 형광펜 */
+  #pick { position: absolute; left: calc(var(--p) * 6); top: calc(var(--p) * 128); width: calc(var(--p) * 82); height: calc(var(--p) * 14); border-radius: calc(var(--p) * 7); overflow: hidden; z-index: 3;
+          background: var(--accent); color: var(--on-accent); box-shadow: 0 calc(var(--p) * 1.6) calc(var(--p) * 4.2) calc(var(--p) * -1.4) rgba(var(--shade), 0.34); }
+  #pickLabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 0.5em; font-size: calc(var(--p) * 4.3); font-weight: 700; letter-spacing: -0.025em; white-space: nowrap; }
+  .cvB { width: calc(var(--p) * 36); height: calc(var(--p) * 51); }
+  .cvB .cvk, .cvB .cvt { left: calc(var(--p) * 3.4); }
+  .cvB .cvk { top: calc(var(--p) * 3.7); }
+  .cvB .cvt { bottom: calc(var(--p) * 3.6); font-size: calc(var(--p) * 7.4); line-height: 1.1; }
+  .cvB .cvr { position: absolute; left: calc(var(--p) * 3.4); bottom: calc(var(--p) * 22.2); width: calc(var(--p) * 5.4); height: calc(var(--p) * 0.6); background: currentColor; }
+
+  #with { position: absolute; left: 0; right: 0; top: calc(var(--p) * 129.2); width: fit-content; margin: 0 auto; display: flex; align-items: center; gap: calc(var(--p) * 2.4);
+          padding: calc(var(--p) * 1.7) calc(var(--p) * 4.4) calc(var(--p) * 1.7) calc(var(--p) * 1.9); border-radius: 99px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line);
+          font-size: calc(var(--p) * 3.7); font-weight: 640; letter-spacing: -0.02em; white-space: nowrap; line-height: 1; }
+  #with .avs { display: flex; padding-left: calc(var(--p) * 0.9); }
+  .av { width: calc(var(--p) * 7.4); height: calc(var(--p) * 7.4); margin-left: calc(var(--p) * -0.9); border-radius: 50%; box-shadow: 0 0 0 calc(var(--p) * 0.6) var(--surface-2);
+        display: flex; align-items: center; justify-content: center; font-size: calc(var(--p) * 3.6); font-weight: 700; line-height: 1; }
+  .av:nth-child(1) { background: var(--fg); color: var(--bg); }
+  .av:nth-child(2) { background: linear-gradient(var(--fg-3), var(--fg-3)), var(--surface); color: var(--fg); }
+  .av:nth-child(3) { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 calc(var(--p) * 0.6) var(--surface-2), inset 0 0 0 1px var(--line-2); }
+
+  #strip { position: absolute; left: calc(var(--p) * 6); right: calc(var(--p) * 6); top: calc(var(--p) * 152); padding-top: calc(var(--p) * 6); border-top: 1px solid var(--line); display: flex; align-items: center; gap: calc(var(--p) * 3.6); }
+  #strip .th { width: calc(var(--p) * 11); height: calc(var(--p) * 15); border-radius: calc(var(--p) * 1.4); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); flex: none; }
+  #strip .ln { flex: 1; display: flex; flex-direction: column; gap: calc(var(--p) * 2.4); }
+  #strip .ln i { display: block; height: calc(var(--p) * 2.6); border-radius: 99px; background: rgba(var(--tint), 0.09); }
+  #strip > .mo-icon { font-size: calc(var(--p) * 4.4); color: var(--fg-4); }
+  #tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p) * 18); border-top: 1px solid var(--line); background: var(--surface); display: flex; align-items: flex-start; justify-content: space-around;
+            padding: calc(var(--p) * 3.2) calc(var(--p) * 5) 0; font-size: calc(var(--p) * 5.6); color: var(--fg-3); }
+  #tabbar .on { color: var(--fg); }
+  #homebar { position: absolute; left: 50%; bottom: calc(var(--p) * 2.4); width: calc(var(--p) * 31); height: calc(var(--p) * 1.15); margin-left: calc(var(--p) * -15.5); border-radius: 99px; background: var(--fg); z-index: 3; }
+
+  /* 화면 밖으로 나온 표지와, 프레임을 덮었다가 형광펜으로 줄어드는 면 */
+  #fly { --pw: calc(var(--u) * 160); position: absolute; border-radius: calc(var(--p) * 2.4); background: var(--accent); color: var(--on-accent); overflow: hidden; visibility: hidden; z-index: 4; }
+  #seed { position: absolute; background: var(--accent); visibility: hidden; z-index: 4; }
+
+  /* 엔드카드 — 훅과 같은 자리·같은 축. 질문이 있던 곳에 이름이 놓인다 */
+  #end { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 14.4%; z-index: 5; text-align: center; }
+  #end h1 { margin: 0 0 calc(var(--u) * 3); font-size: calc(var(--u) * 14.8); line-height: 1.1; font-weight: 780; letter-spacing: -0.045em; }
+  #endTag { margin: 0; font-size: calc(var(--u) * 4.4); font-weight: 600; letter-spacing: -0.025em; color: var(--fg-2); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="함께 읽는 도서관 — 앱 소개" data-width="1080" data-height="1920" data-fps="30" data-duration="12" data-theme="paper" data-accent="orange" data-platform="shorts">
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-ground" id="ground"></div>
+  </div>
+
+  <div class="mo-world">
+    <h1 id="hookQ">오늘 뭐 읽지?</h1>
+
+    <div class="mo-phone" id="ph">
+      <div class="mo-screen" id="scr" data-theme="white">
+        <div class="mo-statusbar" data-deco><span>9:41</span><span class="sbr"><i data-icon="wifi" data-stroke="2.4"></i><i data-icon="battery-full" data-stroke="2.1"></i></span></div>
+        <div id="appbar" data-deco><b>함께 읽는 도서관</b><span class="ic"><i data-icon="search" data-stroke="2.1"></i><i data-icon="bell" data-stroke="2.1"></i></span></div>
+        <p id="hello">좋은 저녁이에요</p>
+        <h2 class="q" id="qA">오늘은 어떤 책을<br>읽어 볼까요?</h2>
+        <h2 class="q" id="qB">오늘의 책,<br>세 권을 골랐어요</h2>
+
+        <div class="slot side l" id="slA"></div>
+        <div class="slot side r" id="slC"></div>
+        <div class="slot" id="slB"><i data-icon="book-open" data-stroke="1.6"></i></div>
+
+        <div class="cv side l" id="cvA"><div class="cvin">
+          <svg viewBox="0 0 100 100" style="left:calc(var(--p)*2.9);top:calc(var(--p)*9.8);width:calc(var(--p)*9);height:calc(var(--p)*9)"><circle cx="50" cy="50" r="46" stroke-width="5"/><circle cx="50" cy="50" r="13" fill="currentColor" stroke="none"/></svg>
+          <span class="cvk" data-deco>PICK 02</span><b class="cvt">첫 번째<br>질문</b>
+        </div></div>
+        <div class="cv side r" id="cvC"><div class="cvin">
+          <svg viewBox="0 0 100 60" style="right:calc(var(--p)*2.9);top:calc(var(--p)*9.8);width:calc(var(--p)*15);height:calc(var(--p)*9)"><path d="M22 52a28 28 0 0 1 56 0" stroke-width="3.2"/><path d="M0 52h100" stroke-width="3.2"/></svg>
+          <span class="cvk" data-deco>PICK 03</span><b class="cvt">느린<br>오후</b>
+        </div></div>
+
+        <div id="pick" class="mo-sheen">
+          <span id="pickLabel"><i data-icon="sparkles" data-stroke="2.2"></i>오늘의 책 추천받기</span>
+          <div class="cvB cvin" id="pickCover">
+            <svg viewBox="0 0 100 100" style="right:calc(var(--p)*-12);top:calc(var(--p)*-10.5);width:calc(var(--p)*30);height:calc(var(--p)*30)"><circle cx="50" cy="50" r="48" stroke-width="1.3" opacity=".5"/><circle cx="50" cy="50" r="34" stroke-width="1.3" opacity=".65"/><circle cx="50" cy="50" r="20" stroke-width="1.3" opacity=".8"/><circle cx="50" cy="50" r="6" stroke-width="1.3"/></svg>
+            <span class="cvk" data-deco>PICK 01</span><i class="cvr"></i><b class="cvt">숲의<br>시간</b>
+          </div>
+        </div>
+
+        <div id="with"><span class="avs"><span class="av">민</span><span class="av">서</span><span class="av">준</span></span>지금 함께 읽는 중</div>
+
+        <div id="strip"><i class="th"></i><span class="ln"><i style="width:62%"></i><i style="width:38%"></i></span><i data-icon="chevron-right" data-stroke="2.2"></i></div>
+        <div id="tabbar"><i data-icon="home" class="on" data-stroke="2.1"></i><i data-icon="book-open" data-stroke="2"></i><i data-icon="users" data-stroke="2"></i><i data-icon="user" data-stroke="2"></i></div>
+        <i id="homebar"></i>
+        <div id="scrOff"></div>
+      </div>
+      <i class="wall l"></i><i class="wall r"></i>
+    </div>
+
+    <div id="fly" data-deco></div>
+    <i id="seed"></i>
+
+    <section id="end">
+      <h1><span id="endKey">함께</span> 읽는<br>도서관</h1>
+      <p id="endTag">오늘 읽을 책, 탭 한 번으로</p>
+    </section>
+  </div>
+
+  <div class="mo-hud">
+    <span class="mo-label tl">Reading App</span>
+    <span class="mo-label tr" id="chapter">01 / 03</span>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H, D } = M;
+  const T = { push: 2.3, tap1: 4.05, tap2: 7.55, end: 8.4 };            // 장면 시작 시각
+  const drift = (t) => 1 + 0.04 * t / D;                                  // cam.drift가 그 시각에 곱하는 배율
+
+  // ── 무대: 연회색 스튜디오. 색 빛은 쓰지 않고, 주황은 물체 하나에만 ──
+  M.grain();
+  cam.drift({ zoom: 1.04 });
+  cam.float({ rot: 0.22, pos: u * 0.25, period: 10 });
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, duration: 0.5, stagger: 0.1 }, 0);
+  tl.to('.mo-hud', { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, T.push);                 // 화면 속으로 들어가 있는 동안 모서리 라벨은 비킨다
+  tl.to('.mo-hud', { autoAlpha: 1, duration: 0.5, ease: 'power1.out' }, T.end + 0.1);
+  const chapters = [[T.push + 0.4, '02 / 03'], [T.end - 0.2, '03 / 03']];
+  M.onFrame((t) => { let s = '01 / 03'; for (const [at, txt] of chapters) if (t >= at) s = txt; const el = M.$('#chapter'); if (el.textContent !== s) el.textContent = s; });
+
+  // ── 폰의 자세. s = 폰 배율(폭 100u 기준), y = 폰 중심이 무대 중심에서 내려온 거리(px) ──
+  const p = M.rect('#ph').w / 100, PH = 214.44 / 2;                       // p = 폰 폭의 1%(px), PH = 폰 높이의 절반(p)
+  const pose = (pOn, anchor, t) => {                                      // pOn: 프레임에서 1p가 몇 px로 보일지 · anchor: 프레임 세로 중앙에 올 폰 좌표(p) · t: 도착 시각
+    const z = drift(t);
+    return { s: pOn / p / z, y: (PH - anchor) * pOn / z };
+  };
+  const hero = { s: 0.5, y: u * 9.7 };                                    // 제목 아래에 선 제품 샷(폭 50u)
+  const near = pose(W * 0.91 / 100, 94.65, T.push + 1.55);                         // 폰이 프레임 폭의 91% — 위쪽은 상태 표시줄, 아래는 잘린다
+  const inside = pose(W / 92.6, 110.2, T.tap1 + 2.25);                              // 화면이 프레임을 채운다(베젤 밖). 제목이 안전선 바로 아래
+  const at = (ps) => (x, y) => ({ x: W / 2 + (x + 3 - 50) * p * ps.s, y: H / 2 + ps.y + (y + 3 - PH) * p * ps.s });   // 화면 좌표(p) → 세계 좌표(px)
+
+  // 화면 밖으로 나올 표지: 가운데 표지와 같은 내용(트윈이 스타일을 건드리기 전에 복제한다). 1.6배 크기로 만들어 줄여서 겹친다
+  const fly = M.$('#fly'), FK = 1.6, c0 = at(inside)(47, 93.5);
+  fly.innerHTML = M.$('#pickCover').outerHTML.replace(' id="pickCover"', '');
+  gsap.set(fly, { left: c0.x - p * FK * 18, top: c0.y - p * FK * 25.5, width: p * FK * 36, height: p * FK * 51, scale: inside.s / FK });
+
+  // ── 1 훅 (0–2.3s): 뒷면이던 폰이 떠오르며 돌아서고 화면이 켜진다. 첫 프레임부터 이미 도는 중 ──
+  cam.set({ zoom: 1.1, rx: 3 });
+  cam.to({ zoom: 1, rx: 0, duration: 2.2, ease: 'mo.out' }, 0);
+  gsap.set('#ph', { scale: hero.s, y: hero.y + u * 15, rotationY: 150, rotationX: 9 });
+  tl.to('#ph', { rotationY: 0, rotationX: 0, y: hero.y, duration: 2.28, ease: 'sine.out' }, 0);       // 이미 도는 중 → 길게 정착
+  tl.fromTo('#ground', { autoAlpha: 0, scaleX: 0.45 }, { autoAlpha: 1, scaleX: 1, duration: 2.0, ease: 'power2.out' }, 0.15);
+  const hq = M.split('#hookQ', { by: 'words' });
+  tl.from(hq.words, { yPercent: 56, duration: 0.95, ease: 'mo.out', stagger: 0.08 }, 0);
+  // 화면이 이쪽을 향하는 순간 켜지고, UI가 차례로 깨어난다
+  tl.to('#scrOff', { autoAlpha: 0, duration: 0.4, ease: 'power2.out' }, 0.6);
+  M.reveal('#appbar', { type: 'fade', y: p * 2, duration: 0.6 }, 0.78);
+  M.reveal('#hello', { type: 'fade', y: p * 2, duration: 0.6 }, 0.88);
+  M.reveal('#qA', { type: 'rise', duration: 0.9 }, 0.92);
+  tl.from(['#slB', '#slA', '#slC'], { autoAlpha: 0, y: p * 4, scale: 0.94, duration: 0.7, stagger: 0.07 }, 1.05);
+  tl.from('#pick', { autoAlpha: 0, y: p * 4, duration: 0.7 }, 1.25);
+  tl.from('#strip, #tabbar > *', { autoAlpha: 0, y: p * 2, duration: 0.6, stagger: 0.04 }, 1.3);
+
+  // ── 2 진입 (2.3–3.9s): 화면으로 다가간다(카메라 zoom이 아니라 폰이 제 크기로 돌아오는 것). 질문은 지우지 않고 같은 초점으로 스쳐 지나간다 ──
+  const kz = near.s / hero.s, focal = H / 2 + (near.y - kz * hero.y) / (1 - kz), hqc = M.rect('#hookQ').cy;
+  tl.to('#hookQ', { scale: kz, y: (focal + (hqc - focal) * kz) - hqc, duration: 1.55, ease: 'mo.cam' }, T.push);
+  M.scene('#hookQ', 0, T.push + 1.3);
+  tl.to('#ground', { autoAlpha: 0, duration: 0.5, ease: 'power1.in' }, T.push);
+  tl.to('#ph', { scale: near.s, y: near.y, duration: 1.55, ease: 'mo.cam' }, T.push);
+  cam.to({ ry: -4, rx: 1.5, duration: 1.55 }, T.push);                                             // 다가가며 살짝 돌아 기기의 두께가 보인다
+
+  // ── 3 추천 (4.05–7.55s): 탭 → 버튼이 가운데 표지로 일어서고, 뒤에서 두 권이 양옆 칸으로 펼쳐진다 ──
+  const tM = T.tap1 + 0.14;
+  M.tap(at(near)(47, 135), T.tap1);
+  M.press('#pick', T.tap1);
+  tl.to('#pickLabel', { autoAlpha: 0, duration: 0.14, ease: 'power1.in' }, tM - 0.02);
+  tl.to('#pick', { left: p * 29, width: p * 36, borderRadius: p * 2.4, duration: 0.6, ease: 'mo.inOut' }, tM);
+  tl.to('#pick', { top: p * 68, height: p * 51, duration: 0.8, ease: 'mo.settle' }, tM + 0.1);
+  tl.from('#pickCover > *', { autoAlpha: 0, y: p * 2, duration: 0.5, stagger: 0.06 }, tM + 0.55);
+  M.exit('#qA', { type: 'rise', duration: 0.42 }, tM + 0.05);
+  M.scene('#qA', 0, tM + 0.55).scene('#qB', tM + 0.3);
+  M.reveal('#qB', { type: 'rise', duration: 0.9 }, tM + 0.4);
+  gsap.set('#cvA', { x: p * 23, scale: 0.9 });
+  gsap.set('#cvC', { x: -p * 23, scale: 0.9 });
+  M.scene('#cvA, #cvC', tM + 0.58);
+  tl.to('#cvA', { x: 0, scale: 1, duration: 0.85, ease: 'mo.out' }, tM + 0.6);
+  tl.to('#cvC', { x: 0, scale: 1, duration: 0.85, ease: 'mo.out' }, tM + 0.69);
+  tl.from('#cvA .cvin > *', { autoAlpha: 0, y: p * 2, duration: 0.5, stagger: 0.06 }, tM + 0.95);
+  tl.from('#cvC .cvin > *', { autoAlpha: 0, y: p * 2, duration: 0.5, stagger: 0.06 }, tM + 1.04);
+  tl.to('#ph', { scale: inside.s, y: inside.y, duration: 1.7, ease: 'mo.cam' }, tM + 0.4);       // 결과가 펼쳐지는 쪽으로 한 걸음 더 — 화면 안으로
+  cam.to({ ry: 0, rx: 0, duration: 1.7 }, tM + 0.4);
+  tl.fromTo('#pick', { '--sheen': -0.3 }, { '--sheen': 1.3, duration: 0.9, ease: 'mo.inOut' }, tM + 1.3);   // 도착한 표지 위로 빛이 한 번 훑는다
+  M.scene('#with', 0, T.end);
+  M.reveal('#with', { type: 'pop', scale: 0.84 }, tM + 1.55);
+  tl.from('#with .av', { scale: 0, duration: 0.45, ease: 'mo.pop', stagger: 0.07 }, tM + 1.63);
+
+  // ── 4 전환 (7.55–9.6s): 표지를 누르면 화면 밖으로 커져 프레임을 덮고, "함께" 뒤의 형광펜으로 줄어든다 ──
+  M.tap(at(inside)(47, 97), T.tap2);
+  M.scene('#fly', T.tap2 + 0.02, T.end - 0.03);
+  tl.set('#pick', { autoAlpha: 0 }, T.tap2 + 0.02);
+  tl.set('#pick', { autoAlpha: 1 }, T.end - 0.04);                                                 // 엔드카드의 폰에는 세 권이 다 꽂혀 있다
+  tl.to(fly, { scale: inside.s / FK * 0.965, duration: 0.1, ease: 'power2.out' }, T.tap2 + 0.02);
+  tl.to(fly, { scale: inside.s / FK * 4.4, duration: 0.7, ease: 'power2.inOut' }, T.tap2 + 0.12);
+  tl.to('#fly .cvB > *', { autoAlpha: 0, duration: 0.3, ease: 'power1.in' }, T.tap2 + 0.25);
+
+  // ── 5 엔드카드 (8.4–12s): 주황 면이 걷히면 폰이 다시 보이고, 질문이 있던 자리에 이름이 놓인다 ──
+  // 폰은 면(z = 0)보다 뒤(z < 0)에 둔다 — 기울인 모서리가 주황 면을 뚫고 나오지 않게. 원근 축소만큼 scale로 되돌린다
+  const PZ = -360, k = 1800 / (1800 - PZ), vis = 0.6, yE = (H * 0.78 - H / 2) / k;
+  tl.fromTo('#ph', { z: PZ, scale: vis / k, y: yE + u * 6, rotationX: 13, rotationY: -22, rotationZ: 0 },
+    { z: PZ, scale: vis / k, y: yE, rotationX: 9, rotationY: -9, rotationZ: 2, duration: D - T.end + 0.04, ease: 'power3.out', immediateRender: false }, T.end - 0.04);   // z·scale도 양쪽에 적는다(from에만 두면 되감은 뒤 다시 적용되지 않았다)
+  M.scene('#end', T.end - 0.03);
+  M.reveal('#end h1', { type: 'rise', duration: 0.95 }, T.end + 0.06);
+  const kr = M.rect('#endKey'), fs = parseFloat(getComputedStyle(M.$('#end h1')).fontSize);
+  const bar = { left: kr.x - fs * 0.1, top: kr.y + fs * 0.07, width: kr.w + fs * 0.2, height: kr.h - fs * 0.07, borderRadius: fs * 0.14 };
+  gsap.set('#seed', { left: -W * 0.2, top: -H * 0.2, width: W * 1.4, height: H * 1.4, borderRadius: 0 });
+  M.scene('#seed', T.end - 0.03);
+  tl.to('#seed', { ...bar, duration: 0.85, ease: 'mo.inOut' }, T.end + 0.32);
+  M.reveal('#endTag', { type: 'fade' }, T.end + 1.0);
+});
+</script>
+</body>
+</html>

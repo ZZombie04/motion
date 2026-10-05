@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AI에게 일을 맡기는 교사 — 연수 홍보 쇼츠</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 요청: "교사 대상 AI 연수 홍보 쇼츠. 제목은 'AI에게 일을 맡기는 교사', 수업 준비 시간이 확 줄어든다는 걸 보여줘." */
+  .cap { margin: 0; font-size: calc(var(--u) * 3); font-weight: 560; letter-spacing: 0.01em; color: var(--fg-2); }
+  .mo-hud .mo-label { font-size: calc(var(--u) * 2.15); }
+
+  /* 1 훅 — 숫자 하나로 시작 */
+  #hook { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 29.5%; }
+  .big { display: flex; align-items: flex-end; overflow: hidden; padding: 0.06em 0 0.02em; margin: calc(var(--u) * 2) 0 calc(var(--u) * 3.4) calc(var(--u) * -0.9);
+         font-family: var(--font-latin); font-weight: 650; font-size: calc(var(--u) * 39.5); line-height: 0.82; letter-spacing: -0.065em; }
+  .big .d { display: inline-block; }
+  .big small { font-family: var(--font-sans); font-size: 0.27em; font-weight: 720; letter-spacing: -0.03em; margin: 0 0 0.3em 0.4em; line-height: 1; }
+  #hkQ { font-size: calc(var(--u) * 7.4); }
+
+  /* 2 요청 → 3 실행 : 입력창이 그대로 카드가 된다 */
+  #askTitle { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 33.4%; text-align: center; font-size: calc(var(--u) * 9.8); }
+  #panel { position: absolute; left: var(--safe-x); width: calc(var(--W) - var(--safe-x) * 2); top: calc(var(--H) * 0.468); height: calc(var(--u) * 13.6); border-radius: calc(var(--u) * 6.8); overflow: hidden;
+           background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.045)), #101013;
+           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 calc(var(--u) * 3) calc(var(--u) * 7) calc(var(--u) * -2) rgba(0, 0, 0, 0.7), 0 calc(var(--u) * 9) calc(var(--u) * 16) calc(var(--u) * -5) rgba(0, 0, 0, 0.8); }
+  #typedBox, #ph { position: absolute; left: calc(var(--u) * 5); top: 0; height: calc(var(--u) * 13.6); display: flex; align-items: center; font-size: calc(var(--u) * 4.9); font-weight: 620; letter-spacing: -0.022em; white-space: nowrap; transform-origin: 0 50%; }
+  #ph { color: var(--fg-3); font-weight: 520; }
+  #send { position: absolute; right: calc(var(--u) * 1.9); top: calc(var(--u) * 1.9); width: calc(var(--u) * 9.8); height: calc(var(--u) * 9.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(var(--u) * 4); background: rgba(255, 255, 255, 0.14); color: rgba(255, 255, 255, 0.5); }
+  #cardBody { position: absolute; left: calc(var(--u) * 5); right: calc(var(--u) * 5); top: 0; padding: calc(var(--u) * 5.2) 0 calc(var(--u) * 10.4); }
+  #state { font-size: calc(var(--u) * 2.3); }
+  #titleSlot { visibility: hidden; margin: calc(var(--u) * 2.6) 0 calc(var(--u) * 1.4); font-size: calc(var(--u) * 5.2); font-weight: 620; line-height: 1.3; white-space: nowrap; }
+  #cardBody .mo-item { font-size: calc(var(--u) * 4.1); padding: calc(var(--u) * 2.8) 0; font-weight: 570; gap: calc(var(--u) * 2.2); }
+  #cardBody .meta { font-size: calc(var(--u) * 2.3); }
+  .status { position: relative; width: calc(var(--u) * 4.8); height: calc(var(--u) * 4.8); flex: none; }
+  .status > * { position: absolute; inset: 0; width: auto; height: auto; }
+  .status .mo-check { box-shadow: none; }
+  #bar { position: absolute; height: calc(var(--u) * 1); z-index: 3; }
+
+  /* 4 결과 숫자 */
+  #stat { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 30.5%; text-align: center; }
+  #stat .num { display: flex; align-items: flex-end; justify-content: center; margin-top: calc(var(--u) * 2.6); font-family: var(--font-latin); font-weight: 650; font-size: calc(var(--u) * 44); line-height: 0.82; letter-spacing: -0.065em; }
+  #stat .num small { font-family: var(--font-sans); font-size: 0.25em; font-weight: 720; letter-spacing: -0.03em; margin: 0 0 0.3em 0.4em; line-height: 1; }
+  #saved { position: absolute; left: var(--safe-x); right: var(--safe-x); margin: 0; text-align: center; font-size: calc(var(--u) * 5); font-weight: 600; letter-spacing: -0.025em; color: var(--fg-2); }
+  #saved b { font-weight: 720; color: var(--fg); }
+
+  /* 5 엔드카드 */
+  #end { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 32%; }
+  #endLabel { padding-left: 1.5em; }
+  #end h1 { font-size: calc(var(--u) * 13.8); line-height: 1.11; margin: calc(var(--u) * 3.6) 0 calc(var(--u) * 6.4); }
+  #cta { font-size: calc(var(--u) * 3.9); height: 3.1em; padding: 0 1.75em; }
+  #seed { position: absolute; background: var(--accent); border-radius: 99px; z-index: 4; visibility: hidden; box-shadow: 0 0 calc(var(--u) * 1.4) color-mix(in oklab, var(--accent) 75%, transparent); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="AI에게 일을 맡기는 교사" data-width="1080" data-height="1920" data-fps="30" data-duration="15.5" data-theme="ink" data-accent="blue" data-platform="shorts">
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-dotgrid" style="opacity:.5"></div>
+    <div class="mo-horizon" id="hz" style="--hy:80%"></div>
+  </div>
+
+  <div class="mo-world">
+    <section id="hook">
+      <p class="cap" id="hkLabel">하루 평균 수업 준비</p>
+      <div class="big"><span class="d">1</span><span class="d">2</span><span class="d" id="zero">0</span><small id="hkUnit">분</small></div>
+      <h2 class="mo-h2" id="hkQ">아직도 <span id="hkHl">직접</span> 하세요?</h2>
+    </section>
+
+    <h1 class="mo-h1" id="askTitle">AI에게 맡기면?</h1>
+    <div id="panel" class="mo-sheen">
+      <div id="cardBody">
+        <p class="mo-label" id="state"><span class="mo-dot" style="background:var(--fg);box-shadow:none"></span><span id="stateText">AGENT · RUNNING</span></p>
+        <h3 id="titleSlot">3학년 과학 활동지 만들어줘</h3>
+        <div class="mo-list">
+          <div class="mo-item"><span class="status"><span class="mo-spinner"></span><span class="mo-check"></span></span><span class="grow">성취기준 확인</span><span class="meta">0.8s</span></div>
+          <div class="mo-item"><span class="status"><span class="mo-spinner"></span><span class="mo-check"></span></span><span class="grow">활동지 3종 구성</span><span class="meta">2.1s</span></div>
+          <div class="mo-item"><span class="status"><span class="mo-spinner"></span><span class="mo-check"></span></span><span class="grow">평가 루브릭 작성</span><span class="meta">1.4s</span></div>
+        </div>
+      </div>
+      <div id="ph">무엇이든 맡겨 보세요</div>
+      <div id="typedBox"><span id="typed"></span></div>
+      <div id="send"><i data-icon="arrow-up" data-stroke="2.6"></i></div>
+    </div>
+    <div class="mo-progress accent" id="bar"><i></i></div>
+
+    <section id="stat">
+      <p class="cap" id="statLabel">수업 준비 시간</p>
+      <div class="num"><span id="n">120</span><small>분</small></div>
+    </section>
+    <p id="saved"><b>110분</b>을 돌려받습니다</p>
+
+    <section id="end">
+      <p class="cap" id="endLabel">교사 연수 · 신청 접수 중</p>
+      <h1 class="mo-display">AI에게 일을<br><span id="endHl">맡기는</span> 교사</h1>
+      <span class="mo-btn" id="cta">연수 신청하기 <i data-icon="arrow-up-right" data-stroke="2.3"></i></span>
+    </section>
+    <i id="seed"></i>
+  </div>
+
+  <div class="mo-hud">
+    <span class="mo-label tl">AI × Classroom</span>
+    <span class="mo-label tr" id="chapter">01 / 05</span>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H } = M;
+  const T = { ask: 2.95, run: 6.0, stat: 9.15, end: 12.6 };            // 장면 시작 시각
+
+  // ── 무대: 검정 위 한 줄기 지평선 빛. 카메라는 처음부터 끝까지 아주 천천히 다가가고, 손으로 든 듯 미세하게 흔들린다 ──
+  M.grain();
+  cam.drift({ zoom: 1.05 });
+  cam.float({ rot: 0.3, pos: u * 0.3, period: 10 });
+  tl.fromTo('#hz', { '--hy': '82%' }, { '--hy': '77.5%', duration: M.D, ease: 'none' }, 0);
+  M.scene('#hook', 0, 3.35).scene('#askTitle', T.ask, T.run + 0.4).scene('#panel', T.ask, T.stat + 0.6).scene('#bar', T.run + 0.3, T.end + 0.25).scene('#stat', T.stat, T.end + 0.4).scene('#saved', T.stat + 1.5, T.end + 0.4).scene('#end', T.end);
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, duration: 0.5, stagger: 0.1 }, 0);
+  const chapters = [[T.ask, '02 / 05'], [T.run + 0.2, '03 / 05'], [T.stat + 0.3, '04 / 05'], [T.end + 0.1, '05 / 05']];
+  M.onFrame((t) => { let s = '01 / 05'; for (const [at, txt] of chapters) if (t >= at) s = txt; const el = M.$('#chapter'); if (el.textContent !== s) el.textContent = s; });
+
+  // ── 1 훅 (0–2.9s): 비스듬히 있던 화면이 바로 서며 "120분"이 솟는다. 첫 프레임부터 이미 움직이는 중 ──
+  cam.set({ rx: 9, ry: -12, zoom: 1.16 });
+  cam.to({ rx: 0, ry: 0, zoom: 1, duration: 2.3, ease: 'mo.out' }, 0);
+  tl.from('#hkLabel', { autoAlpha: 0.3, y: u * 1.5, duration: 0.6 }, 0);
+  tl.from('.big .d', { yPercent: 64, duration: 0.95, ease: 'mo.out', stagger: 0.08 }, 0);
+  tl.from('#hkUnit', { autoAlpha: 0, x: -u * 2, duration: 0.6 }, 0.42);
+  M.reveal('#hkQ', { type: 'words' }, 0.8);
+  M.highlight('#hkHl', { duration: 0.5 }, 1.6);
+  // 전환: 카메라가 숫자 0의 안쪽으로 뚫고 지나간다(줌 스루)
+  const z = M.rect('#zero'), hk = M.rect('#hook');
+  tl.to('#hook', { scale: 15, transformOrigin: `${z.cx - hk.x}px ${z.cy - hk.y + u}px`, duration: 0.85, ease: 'power3.in' }, 2.5);
+  tl.to('#hook', { autoAlpha: 0, duration: 0.14 }, 3.2);
+
+  // ── 2 요청 (2.95–6.0s): 멀리서 다가온 입력창에 커서가 한 줄을 친다 ──
+  M.reveal('#askTitle', { type: 'words', duration: 0.9 }, T.ask + 0.12);
+  tl.from('#panel', { scale: 0.62, y: u * 10, autoAlpha: 0, duration: 1.0, ease: 'mo.out' }, T.ask);
+  const pn = M.rect('#panel'), fieldCy = pn.cy;
+  const cur = M.cursor({ x: 960, y: 1560, hidden: true });
+  cur.show(T.ask + 0.35);
+  cur.moveTo('#ph', { ax: 0.5, duration: 0.8 }, T.ask + 0.35);
+  cur.click(T.ask + 1.18);
+  tl.to('#ph', { autoAlpha: 0, duration: 0.2 }, T.ask + 1.22);
+  cur.moveTo('#panel', { ax: 0.78, ay: 1.75, duration: 0.5 }, T.ask + 1.3);                                     // 클릭한 뒤 커서는 글자를 가리지 않게 비켜난다
+  cam.to({ zoom: 1.15, y: fieldCy - u * 6, ry: -5, rx: 2.5, duration: 1.4 }, T.ask + 0.7);                      // 입력창으로 다가가며 살짝 돌아 깊이를 만든다
+  M.type('#typed', '3학년 과학 활동지 만들어줘', { duration: 1.3, hold: 0.2 }, T.ask + 1.3);
+  cam.to({ ry: 4.5, duration: 1.75, ease: 'sine.inOut' }, T.ask + 1.35);                                        // 글자가 쳐지는 방향으로 천천히 돈다
+  tl.to('#send', { backgroundColor: '#3D7BFF', color: '#FFFFFF', duration: 0.25 }, T.ask + 1.45);             // 글자가 생기면 전송 버튼이 켜진다
+  cur.moveTo('#send', { duration: 0.42 }, T.ask + 2.4);
+  cur.click(T.ask + 2.84, { accent: true });
+  M.press('#send', T.ask + 2.84);
+  cur.hide(T.ask + 3.0);
+
+  // ── 3 실행 (6.0–9.15s): 입력창이 그대로 카드로 자라고, 친 문장은 카드의 제목이 된다 ──
+  const bodyH = M.rect('#cardBody').h, fieldH = pn.h, cardTop = H * 0.268;
+  const slot = M.rect('#titleSlot');
+  tl.to('#askTitle', { y: -u * 7, autoAlpha: 0, duration: 0.36, ease: 'mo.in' }, T.run - 0.42);
+  tl.to('#send', { scale: 0, autoAlpha: 0, duration: 0.28, ease: 'mo.in' }, T.run);
+  tl.to('#panel', { top: cardTop, height: bodyH, borderRadius: u * 5, duration: 0.95, ease: 'mo.settle' }, T.run + 0.05);
+  tl.to('#typedBox', { y: slot.cy - pn.y - fieldH / 2, scale: 5.2 / 4.9, duration: 0.95, ease: 'mo.settle' }, T.run + 0.05);
+  cam.to({ x: W / 2, y: H * 0.49, zoom: 1.04, ry: -8, rx: 3.5, duration: 1.25 }, T.run - 0.05);
+  cam.to({ ry: 6, rx: 1, zoom: 1.09, duration: 2.5, ease: 'mo.inOut' }, T.run + 0.9);
+  tl.from('#state', { autoAlpha: 0, y: u * 1.5, duration: 0.5 }, T.run + 0.3);
+  tl.from('#cardBody .mo-item', { autoAlpha: 0, y: u * 3, duration: 0.65, stagger: 0.1 }, T.run + 0.34);
+  gsap.set('#cardBody .mo-item .grow', { opacity: 0.45 });
+  // 진행 막대는 카드 위에 얹힌 별도 요소 — 다음 장면까지 이어서 쓴다
+  const barIn = { left: pn.x + u * 5, width: pn.w - u * 10, top: cardTop + bodyH - u * 5.9 };
+  gsap.set('#bar', barIn);
+  tl.from('#bar', { scaleX: 0, transformOrigin: '0 50%', duration: 0.7, ease: 'mo.inOut' }, T.run + 0.7);
+  M.spin('#cardBody .mo-spinner');
+  M.$$('#cardBody .mo-item').forEach((r, i) => {
+    const at = T.run + 1.2 + i * 0.5;
+    tl.to(r.querySelector('.mo-spinner'), { scale: 0.4, autoAlpha: 0, duration: 0.18, ease: 'mo.in' }, at);
+    M.fill(r.querySelector('.mo-check'), { duration: 0.5, ease: 'mo.spring' }, at + 0.06);
+    tl.to(r.querySelector('.grow'), { opacity: 1, duration: 0.3 }, at);
+    tl.from(r.querySelector('.meta'), { autoAlpha: 0, x: u, duration: 0.4 }, at + 0.1);
+    M.fill('#bar', { from: i / 3, to: (i + 1) / 3, duration: 0.55, ease: 'mo.inOut' }, at);
+  });
+  const done = T.run + 2.42;
+  tl.set('#stateText', { textContent: 'AGENT · DONE' }, done);
+  M.pulse('#state', done, { scale: 1.07 });
+  tl.fromTo('#panel', { '--sheen': -0.3 }, { '--sheen': 1.3, duration: 0.9, ease: 'mo.inOut' }, done);            // 완료 순간 카드 위로 빛이 한 번 훑는다
+
+  // ── 4 결과 (9.15–12.6s): 카드는 막대 한 줄로 접히고, 그 막대가 120분에서 10분으로 줄어든다 ──
+  const barY = H * 0.628;
+  tl.to('#cardBody, #typedBox', { autoAlpha: 0, duration: 0.26, ease: 'mo.in' }, T.stat - 0.2);
+  tl.to('#panel', { top: barIn.top, height: u * 1, borderRadius: u, autoAlpha: 0, duration: 0.42, ease: 'mo.inOut' }, T.stat - 0.02);
+  cam.to({ x: W / 2, y: H / 2, zoom: 1, ry: 0, rx: 0, duration: 1.3 }, T.stat - 0.15);
+  tl.to('#bar', { left: pn.x, width: pn.w, top: barY, duration: 0.8, ease: 'mo.inOut' }, T.stat + 0.2);
+  M.reveal('#statLabel', { type: 'fade' }, T.stat + 0.3);
+  tl.from('#stat .num', { yPercent: 14, autoAlpha: 0, duration: 0.7 }, T.stat + 0.25);
+  M.count('#n', { from: 120, to: 10, duration: 1.25, ease: 'power3.inOut' }, T.stat + 0.85);
+  M.fill('#bar', { from: 1, to: 10 / 120, duration: 1.25, ease: 'power3.inOut' }, T.stat + 0.85);
+  M.pulse('#stat .num', T.stat + 2.02, { scale: 1.06 });
+  gsap.set('#saved', { top: barY + u * 4.6 });
+  M.reveal('#saved', { type: 'words' }, T.stat + 1.95);
+
+  // ── 5 엔드카드 (12.6–15.5s): 남은 10분짜리 막대가 라벨 앞의 점이 된다. 제목은 충분히 오래 ──
+  const lab = M.rect('#endLabel'), dot = u * 1.5, fillW = pn.w * (10 / 120);
+  M.exit('#statLabel', { type: 'fade' }, T.end - 0.3);
+  tl.to('#stat .num', { yPercent: -12, autoAlpha: 0, duration: 0.4, ease: 'mo.in' }, T.end - 0.3);
+  M.exit('#saved', { type: 'fade' }, T.end - 0.3);
+  gsap.set('#seed', { left: pn.x, top: barY, width: fillW, height: u * 1 });
+  M.scene('#seed', T.end - 0.08);
+  tl.to('#bar', { autoAlpha: 0, duration: 0.2 }, T.end - 0.08);
+  tl.to('#seed', { left: lab.x, top: lab.cy - dot / 2, width: dot, height: dot, duration: 0.7, ease: 'mo.inOut' }, T.end - 0.06);
+  M.reveal('#endLabel', { type: 'fade', y: 0 }, T.end + 0.4);
+  M.reveal('#end h1', { type: 'rise' }, T.end + 0.12);
+  M.highlight('#endHl', T.end + 1.05);
+  M.reveal('#cta', { type: 'pop' }, T.end + 0.95);
+  cur.moveTo({ x: 930, y: 1540 }, { duration: 0.01 }, T.end);
+  cur.show(T.end + 1.2);
+  cur.moveTo('#cta', { ax: 0.74, duration: 0.7 }, T.end + 1.2);
+  cur.click(T.end + 1.98);
+  M.press('#cta', T.end + 1.98);
+  tl.fromTo('#hz', { filter: 'brightness(1)' }, { filter: 'brightness(1.55)', duration: 0.25, ease: 'power2.out', immediateRender: false }, T.end + 1.98);   // 클릭에 지평선이 한 번 밝아진다
+  tl.to('#hz', { filter: 'brightness(1.15)', duration: 0.6 }, T.end + 2.23);
+});
+</script>
+</body>
+</html>

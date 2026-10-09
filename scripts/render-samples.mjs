@@ -18,7 +18,9 @@ const dir = path.join(root, 'samples'), media = path.join(dir, 'media'), docs = 
 fs.mkdirSync(media, { recursive: true }); fs.mkdirSync(docs, { recursive: true });
 
 // poster time (seconds) per sample; default = 60% of duration
-const POSTER = { '01-ai-teacher': 8.7, '02-sports-day': 9.0, '03-participation': 6.6, '04-reading-app': 10.9, '05-three-steps': 19.2, '06-logo-sting': 3.4 };
+const POSTER = { '01-ai-teacher': 8.7, '02-sports-day': 9.0, '03-participation': 6.6, '04-reading-app': 10.9, '05-three-steps': 19.2, '06-logo-sting': 3.4, '07-showreel': 14.4 };
+// samples the landing page (docs/index.html) plays as video, not as an animated picture
+const PAGE_VIDEO = new Set(['07-showreel']);
 
 const files = fs.readdirSync(dir).filter((f) => f.endsWith('.html')).filter((f) => !only.length || only.some((o) => f.includes(o))).sort();
 for (const f of files) {
@@ -34,5 +36,6 @@ for (const f of files) {
   const pt = POSTER[name] ?? r.duration * 0.6;
   const shot = await frames(src, { at: [pt], out: path.join(root, 'work', 'out', 'posters') });
   await ffmpeg(['-i', shot.frames[0].file, '-vf', `scale=${portrait ? 720 : 1280}:-2:flags=lanczos`, '-q:v', '3', path.join(docs, name + '.jpg')]).done;
+  if (PAGE_VIDEO.has(name)) fs.copyFileSync(mp4, path.join(docs, name + '.mp4'));
   console.log(`  → ${path.relative(root, mp4)} · docs/media/${name}.webp (${(fs.statSync(path.join(docs, name + '.webp')).size / 1048576).toFixed(1)} MB) · docs/media/${name}.jpg`);
 }

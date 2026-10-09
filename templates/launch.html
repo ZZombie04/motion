@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 제품·사이트 출시 — 훅 한 줄 → 이름 공개 → 노트북 화면 속 UI와 기능 주석 3개(카메라가 옮겨 다님) → 화면 속으로 들어가 핵심 숫자 → 행동 유도.
+     motion brand로 받은 brand.json과 짝: 테마·포인트 색·이름은 motion new --brand가 채우고, 로고·한 줄 소개·주소는 --vars로 넣는다.
+     문구는 전부 data-var(motion vars 파일로 목록). 로고는 없으면 자리째 사라진다. UI는 실제 서비스를 흉내 내지 않은 일반형. */
+
+  /* 1 훅 · 2 이름 — 세계의 가운데 */
+  #hook { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 50%; transform: translateY(-50%); text-align: center; }
+  #hook h1 { font-size: calc(var(--u) * 12.6); }
+  #brand { position: absolute; left: 0; right: 0; top: 50%; display: flex; flex-direction: column; align-items: center; text-align: center; transform: translateY(-50%); }
+  #brand .logo { height: calc(var(--u) * 7.2); max-width: calc(var(--u) * 46); object-fit: contain; margin-bottom: calc(var(--u) * 4.6); }
+  #name { margin: 0; font-size: calc(var(--u) * 13.6); line-height: 1.08; font-weight: 760; letter-spacing: -0.045em; white-space: nowrap; }
+  #tag { margin: calc(var(--u) * 3.2) 0 0; font-size: calc(var(--u) * 3.9); font-weight: 560; letter-spacing: -0.02em; color: var(--fg-2); }
+
+  /* 3 노트북 — 화면 속 치수는 --sp(노트북 폭의 1%) 기준 */
+  #lp { --lw: calc(var(--u) * 90); --sp: calc(var(--lw) / 100); --open: 100; position: absolute; left: calc(var(--W) / 2 - var(--lw) / 2); top: calc(var(--H) * 0.235); }
+  #scr { font-size: calc(var(--sp) * 1.5); line-height: 1.3; letter-spacing: -0.015em; }
+  .ui { position: absolute; inset: 0; }
+  .ui-bar { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sp) * 4.6); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+  .ui-dots { position: absolute; left: calc(var(--sp) * 2.2); top: 50%; display: flex; gap: calc(var(--sp) * 0.7); transform: translateY(-50%); }
+  .ui-dots b { width: calc(var(--sp) * 0.95); height: calc(var(--sp) * 0.95); border-radius: 50%; background: rgba(var(--tint), 0.16); }
+  .ui-addr { display: flex; align-items: center; justify-content: center; gap: 0.5em; width: calc(var(--sp) * 34); height: calc(var(--sp) * 2.7); border-radius: 99px; background: rgba(var(--tint), 0.07);
+             font-family: var(--font-mono); font-size: calc(var(--sp) * 1.25); color: var(--fg-2); letter-spacing: 0; white-space: nowrap; overflow: hidden; }
+  .ui-addr .mo-icon { width: 1em; height: 1em; color: var(--fg-3); }
+  .ui-nav { position: absolute; left: calc(var(--sp) * 5); right: calc(var(--sp) * 5); top: calc(var(--sp) * 4.6); height: calc(var(--sp) * 7); display: flex; align-items: center; gap: calc(var(--sp) * 3); }
+  .ui-brand { display: flex; align-items: center; gap: calc(var(--sp) * 1); font-weight: 760; font-size: calc(var(--sp) * 1.75); letter-spacing: -0.03em; white-space: nowrap; flex: none; max-width: calc(var(--sp) * 40); overflow: hidden; }
+  .ui-brand .logo { height: calc(var(--sp) * 2.4); max-width: calc(var(--sp) * 9); object-fit: contain; }
+  .ui-links { margin-left: auto; display: flex; gap: calc(var(--sp) * 2.6); color: var(--fg-3); font-weight: 560; white-space: nowrap; }
+  .ui-nbtn { padding: 0.5em 1.1em; border-radius: 99px; background: var(--fg); color: var(--bg); font-weight: 650; white-space: nowrap; }
+  .ui-hero { position: absolute; left: calc(var(--sp) * 5); top: calc(var(--sp) * 16.5); width: calc(var(--sp) * 45); }
+  .ui-chip { display: inline-flex; align-items: center; height: 2em; padding: 0 0.85em; border-radius: 99px; box-shadow: inset 0 0 0 1px var(--line-2); font-family: var(--font-mono); font-size: calc(var(--sp) * 1.1); letter-spacing: 0.1em; color: var(--fg-2); }
+  #uiHead { margin: calc(var(--sp) * 1.8) 0 0; font-size: calc(var(--sp) * 4.4); line-height: 1.16; font-weight: 760; letter-spacing: -0.04em; }
+  .ui-lines { margin-top: calc(var(--sp) * 2.2); display: flex; flex-direction: column; gap: calc(var(--sp) * 1.1); }
+  .ui-lines i, .ui-sk { display: block; height: calc(var(--sp) * 1.15); border-radius: 99px; background: rgba(var(--tint), 0.1); }
+  .ui-ctas { margin-top: calc(var(--sp) * 3); display: flex; gap: calc(var(--sp) * 1.2); }
+  .ui-cta, .ui-ghost { display: inline-flex; align-items: center; height: 2.9em; padding: 0 1.45em; border-radius: 99px; font-size: calc(var(--sp) * 1.55); font-weight: 680; white-space: nowrap; }
+  .ui-cta { background: var(--accent); color: var(--on-accent); }
+  .ui-ghost { box-shadow: inset 0 0 0 1px var(--line-2); color: var(--fg-2); }
+  .ui-tiles { position: absolute; left: calc(var(--sp) * 5); top: calc(var(--sp) * 46); width: calc(var(--sp) * 45); display: flex; gap: calc(var(--sp) * 1.4); }
+  .ui-tile { flex: 1; display: flex; align-items: center; gap: calc(var(--sp) * 1.1); padding: calc(var(--sp) * 1.4); border-radius: calc(var(--sp) * 1.4); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+  .ui-tile .mo-check { width: calc(var(--sp) * 2.4); height: calc(var(--sp) * 2.4); }
+  .ui-tile .ui-sk { flex: 1; }
+  .ui-side { position: absolute; left: calc(var(--sp) * 55); right: calc(var(--sp) * 5); top: calc(var(--sp) * 16.5); display: flex; flex-direction: column; gap: calc(var(--sp) * 1.6); }
+  .ui-card { padding: calc(var(--sp) * 2.2); border-radius: calc(var(--sp) * 1.8); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 calc(var(--sp) * 1) calc(var(--sp) * 3) calc(var(--sp) * -1) rgba(var(--shade), calc(var(--sh-a) * 0.7)); }
+  .ui-card-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: calc(var(--sp) * 2); }
+  .ui-card-h .ui-sk { width: 38%; }
+  .ui-card-h .ui-sk.s { width: 16%; }
+  .ui-chart { display: flex; align-items: flex-end; gap: calc(var(--sp) * 1.1); height: calc(var(--sp) * 12); }
+  .ui-chart i { flex: 1; height: calc(var(--v) * 100%); border-radius: calc(var(--sp) * 0.5) calc(var(--sp) * 0.5) calc(var(--sp) * 0.2) calc(var(--sp) * 0.2); background: rgba(var(--tint), 0.14); transform-origin: 50% 100%; }
+  .ui-chart i.on { background: var(--fg); }
+  .ui-row { display: flex; align-items: center; gap: calc(var(--sp) * 1.4); padding: calc(var(--sp) * 1.1) 0; }
+  .ui-row + .ui-row { border-top: 1px solid var(--line); }
+  .ui-av { width: calc(var(--sp) * 3); height: calc(var(--sp) * 3); border-radius: 50%; flex: none; background: rgba(var(--tint), 0.14); }
+  .ui-row .ui-sk { flex: 1; }
+
+  /* 기능 주석: 노트북 화면과 같은 평면에 붙는다(기울어도 정확히 그 자리). 점·선·글은 중립색 — 포인트 색은 화면 속 버튼 하나에만 */
+  .anc { position: absolute; width: 0; height: 0; }
+  /* 노트북 밑판 아래(같은 3D 평면)에 깔리는 접지 그림자 — 기기와 함께 기울고 돈다 */
+  .lp-shadow { position: absolute; inset: 1% 2% 0; border-radius: calc(var(--lw) * 0.03); transform: translateZ(calc(var(--lw) * -0.016)); pointer-events: none;
+               box-shadow: 0 calc(var(--lw) * 0.01) calc(var(--lw) * 0.04) calc(var(--lw) * 0.006) rgba(var(--shade), 0.5), 0 calc(var(--lw) * 0.07) calc(var(--lw) * 0.16) calc(var(--lw) * 0.02) rgba(var(--shade), 0.22); }
+  #lp .mo-callout-dot { left: calc(var(--u) * -0.75); top: calc(var(--u) * -0.75); width: calc(var(--u) * 1.5); height: calc(var(--u) * 1.5); background: var(--fg); box-shadow: 0 0 0 calc(var(--u) * 0.55) rgba(var(--tint), 0.18), 0 0 0 calc(var(--u) * 1.4) rgba(var(--tint), 0.06); }
+  #lp .mo-callout-line { background: var(--fg-3); }
+  #lp .mo-callout-label { width: max-content; max-width: calc(var(--u) * 27); white-space: normal; font-size: calc(var(--u) * 2.9); line-height: 1.24; font-weight: 680; letter-spacing: -0.025em; }
+  #lp .mo-callout.left .mo-callout-label, #lp .mo-callout.right .mo-callout-label { transform: translateY(-0.62em); }   /* 선이 첫 줄의 가운데를 가리킨다 */
+  /* 세로 화면: 주석은 노트북 위·아래로. 글은 점에서 화면 안쪽으로 펼친다(al = 왼쪽 맞춤, ar = 오른쪽 맞춤) */
+  #lp .mo-callout.top .mo-callout-label, #lp .mo-callout.bottom .mo-callout-label { transform: none; max-width: calc(var(--u) * 46); }
+  #lp .mo-callout.al .mo-callout-label { left: calc(var(--u) * -1.1); text-align: left; }
+  #lp .mo-callout.ar .mo-callout-label { left: auto; right: calc(var(--u) * -1.1); text-align: right; }
+  #lp .mo-callout-label small { margin-top: 0.55em; font-size: 0.6em; letter-spacing: 0.14em; }
+
+  /* 4 숫자 · 5 엔드카드 — 화면 속으로 들어간 뒤의 평면 */
+  .ov { position: absolute; inset: 0; z-index: 3; background: var(--bg); overflow: hidden; }
+  .ov-in { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .ov .mo-glow { left: 50%; top: 46%; --s: calc(var(--u) * 120); --a: 0.16; }
+  .ben-num { display: flex; align-items: flex-end; font-family: var(--font-latin); font-weight: 640; letter-spacing: -0.06em; line-height: 0.8; }
+  #num { font-size: calc(var(--u) * 34); }
+  #unit { margin: 0 0 0.06em 0.12em; font-family: var(--font-sans); font-size: calc(var(--u) * 10); font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  #bar { position: absolute; left: 0; top: 0; z-index: 4; background: var(--accent); }
+  #benText { margin: calc(var(--u) * 8.2) 0 0; font-size: calc(var(--u) * 5); font-weight: 700; letter-spacing: -0.035em; }
+  #note { margin-top: calc(var(--u) * 2.4); }
+  #end .logo { height: calc(var(--u) * 6.4); max-width: calc(var(--u) * 40); object-fit: contain; margin-bottom: calc(var(--u) * 4); }
+  #endName { margin: 0; font-size: calc(var(--u) * 12.4); line-height: 1.08; font-weight: 760; letter-spacing: -0.045em; white-space: nowrap; }
+  #endRow { margin-top: calc(var(--u) * 6); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: calc(var(--u) * 3.2); }
+  #endCta { font-size: calc(var(--u) * 3.3); }
+  #endCta .lbl { display: inline-flex; align-items: center; gap: 0.5em; }
+  #endUrl { font-family: var(--font-mono); font-size: calc(var(--u) * 2.9); letter-spacing: 0; color: var(--fg-2); white-space: nowrap; }
+  #endUrl .mo-icon { color: var(--fg-3); margin-right: 0.35em; }
+  #feats { display: none; }
+  /* 세로 화면(쇼츠 등): 노트북을 화면 폭에 맞추고 조금 아래에 둔다 */
+  #stage.stack #lp { --lw: calc(var(--W) * 0.86); top: calc(var(--H) * 0.37); }
+  #stage.stack #name, #stage.stack #endName { font-size: calc(var(--u) * 12); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}}>
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-dotgrid" style="opacity:.42"></div>
+    <div class="mo-horizon" id="hz" style="--hy:88%"></div>
+  </div>
+
+  <div class="mo-world">
+    <section id="hook"><h1 class="mo-display" id="hookText" data-var="hook" data-label="훅 한 줄">드디어, 공개합니다</h1></section>
+
+    <section id="brand">
+      <img class="logo" id="logo" data-var="logo" data-label="로고 파일(없으면 비움)" src="" alt="">
+      <h1 id="name" data-var="name" data-label="제품·사이트 이름">{{TITLE}}</h1>
+      <p id="tag" data-var="tagline" data-label="한 줄 소개">필요한 것만, 한 화면에.</p>
+    </section>
+
+    <div class="mo-laptop" id="lp">
+      <div class="mo-screen" id="scr">
+        <div class="ui" id="ui" data-deco>                <!-- 화면 속 UI는 예시 목업: 클로즈업에서 잘려도 되는 장식 -->
+          <div class="ui-bar"><span class="ui-dots"><b></b><b></b><b></b></span><span class="ui-addr"><i data-icon="lock" data-stroke="2.2"></i><span data-var="url" data-label="사이트 주소">example.kr</span></span></div>
+          <nav class="ui-nav">
+            <span class="ui-brand"><img class="logo" data-var="logo" src="" alt=""><span data-var="name">{{TITLE}}</span></span>
+            <span class="ui-links"><span>소개</span><span>기능</span><span>문의</span></span>
+            <span class="ui-nbtn">로그인</span>
+          </nav>
+          <div class="ui-hero">
+            <span class="ui-chip">NEW</span>
+            <h2 id="uiHead" data-var="tagline">필요한 것만, 한 화면에.</h2>
+            <div class="ui-lines"><i style="width:86%"></i><i style="width:58%"></i></div>
+            <div class="ui-ctas"><span class="ui-cta" id="uiCta">시작하기</span><span class="ui-ghost">둘러보기</span></div>
+          </div>
+          <div class="ui-tiles" id="uiTiles">
+            <div class="ui-tile"><span class="mo-check"></span><i class="ui-sk"></i></div>
+            <div class="ui-tile"><span class="mo-check"></span><i class="ui-sk"></i></div>
+            <div class="ui-tile"><span class="mo-check"></span><i class="ui-sk"></i></div>
+          </div>
+          <div class="ui-side">
+            <div class="ui-card" id="uiChart">
+              <div class="ui-card-h"><i class="ui-sk"></i><i class="ui-sk s"></i></div>
+              <div class="ui-chart"><i style="--v:.34"></i><i style="--v:.52"></i><i style="--v:.41"></i><i style="--v:.66"></i><i style="--v:.58"></i><i style="--v:.8"></i><i class="on" style="--v:.94"></i></div>
+            </div>
+            <div class="ui-card" id="uiList">
+              <div class="ui-row"><span class="ui-av"></span><i class="ui-sk" style="max-width:62%"></i></div>
+              <div class="ui-row"><span class="ui-av"></span><i class="ui-sk" style="max-width:48%"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 화면 속으로 들어간 뒤: 핵심 숫자 → 엔드카드 -->
+  <section class="ov" id="ben">
+    <div class="mo-glow"></div>
+    <div class="ov-in" id="benIn">
+      <div class="ben-num"><span id="num" data-var="stat" data-label="핵심 숫자">70</span><span id="unit" data-var="unit" data-label="숫자 단위">%</span></div>
+      <h2 id="benText" data-var="benefit" data-label="숫자의 뜻">반복 작업이 줄어듭니다</h2>
+      <p class="mo-label" id="note" data-var="note" data-label="숫자 출처 · 예시면 '예시 수치' · 숨기려면 -">예시 수치</p>
+    </div>
+  </section>
+  <section class="ov" id="end">
+    <div class="mo-glow"></div>
+    <div class="mo-horizon" id="hz2" style="--hy:90%"></div>
+    <div class="ov-in" id="endIn">
+      <img class="logo" data-var="logo" src="" alt="">
+      <h1 id="endName" data-var="name">{{TITLE}}</h1>
+      <div id="endRow">
+        <span class="mo-btn accent" id="endCta"><span class="lbl"><span data-var="cta" data-label="행동 유도 버튼">지금 시작하기</span><i data-icon="arrow-right" data-stroke="2.4"></i></span></span>
+        <span id="endUrl"><i data-icon="globe" data-stroke="2"></i><span data-var="url">example.kr</span></span>
+      </div>
+    </div>
+  </section>
+  <i id="bar"></i>
+
+  <div id="feats">
+    <span data-var="feature1" data-label="기능 1">가입 없이 바로 시작</span>
+    <span data-var="feature2" data-label="기능 2">모든 기기에서 같은 화면</span>
+    <span data-var="feature3" data-label="기능 3">함께 보고 함께 고치기</span>
+  </div>
+
+  <div class="mo-hud">
+    <span class="mo-label tl" data-var="corner" data-label="모서리 라벨">NEW RELEASE</span>
+    <span class="mo-label tr" id="chap">01 / 05</span>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H, D } = M;
+  const stack = W / H < 1.3;                                                                     // 가로가 아닌 화면은 노트북 위아래로 주석을 단다
+  M.stage.classList.toggle('stack', stack);
+  const $ = M.$, esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // 장면 시각(15초 기준). 엔드카드(2.15초)·숫자(2초)·화면 속으로(0.9초)는 끝에서 거꾸로 붙이고, 앞부분은 남은 길이에 비례해 늘거나 준다 → 14–20초에서 그대로 쓴다
+  const end = D - 2.15, ben = end - 2.0, dive = ben - 0.9, k = dive / 9.95;
+  const T = { name: 2.2 * k, device: 4.15 * k, f: [5.6 * k, 7.05 * k, 8.5 * k], dive, ben, end };
+
+  // ── 재료 정리: 로고가 없으면 자리째 숨긴다(이미지 로딩이 끝난 뒤라 결정적) · 긴 이름은 한 줄에 맞게 줄인다 ──
+  const hasLogo = $('#logo').naturalWidth > 0;
+  M.$$('img[data-var="logo"]').forEach((im) => { if (!hasLogo) im.style.display = 'none'; });
+  const fitLine = (el, maxW) => { const fs = parseFloat(getComputedStyle(el).fontSize), w = el.scrollWidth; if (w > maxW) el.style.fontSize = ((fs * maxW) / w).toFixed(2) + 'px'; };
+  fitLine($('#name'), W - 2 * W * 0.1);
+  fitLine($('#endName'), W - 2 * W * 0.12);
+  fitLine($('#hookText'), W - 2 * W * 0.08);
+  const uh = $('#uiHead'), lh = parseFloat(getComputedStyle(uh).lineHeight);                       // 화면 속 제목은 두 줄까지: 넘치면 글자를 줄인다
+  for (let i = 0; i < 12 && uh.scrollHeight > lh * 2.2; i++) uh.style.fontSize = (parseFloat(getComputedStyle(uh).fontSize) * 0.92).toFixed(2) + 'px';
+  const feats = M.$$('#feats [data-var]').map((e) => e.textContent.trim());
+
+  // ── 무대: 끝까지 아주 느린 푸시 인 + 손으로 든 듯한 흔들림. 지평선 빛은 한 번 천천히 떠오른다 ──
+  M.grain();
+  cam.drift({ zoom: 1.04 });
+  cam.float({ rot: 0.18, pos: u * 0.2, period: 10 });
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, duration: 0.6, stagger: 0.1, pre: 0.5 }, 0);
+  M.text('#chap', [[T.name, '02 / 05'], [T.device, '03 / 05'], [T.ben, '04 / 05'], [T.end, '05 / 05']], { scramble: 0.35 });
+  tl.to('.mo-hud', { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, T.f[0]);               // 기기에 다가간 동안 모서리 라벨은 비킨다
+  tl.to('.mo-hud', { autoAlpha: 1, duration: 0.5, ease: 'power1.out' }, T.ben);
+  tl.fromTo('#hz', { '--hy': '92%' }, { '--hy': '84%', duration: T.dive, ease: 'sine.inOut' }, 0);
+
+  // ── 1 훅 (15초 기준 0–2.2): 비스듬한 화면이 바로 서며 한 줄이 솟는다 — 0초에 이미 움직이는 중 ──
+  cam.set({ rx: 6, ry: -8, zoom: 1.07 });
+  cam.to({ rx: 0, ry: 0, zoom: 1, duration: 2.2, ease: 'mo.out' }, 0);
+  M.reveal('#hookText', { type: 'words', pre: 0.45, duration: 0.95, stagger: 0.07 }, 0);
+  M.exit('#hookText', { type: 'words', duration: 0.4, stagger: 0.04 }, T.name - 0.42);
+  M.scene('#hook', 0, T.name + 0.3);
+
+  // ── 2 이름 (2.2–4.15): 로고가 내려앉고 이름이 마스크에서 솟는다 ──
+  if (hasLogo) tl.from('#logo', { autoAlpha: 0, y: -u * 2.4, scale: 0.94, duration: 0.8, ease: 'mo.out' }, T.name);
+  M.reveal('#name', { type: 'words', duration: 1.0, stagger: 0.08 }, T.name + 0.08);
+  M.sfx('drop', { volume: 0.75 }, T.name + 0.2);
+  M.reveal('#tag', { type: 'fade', y: u * 1.8, duration: 0.85 }, T.name + 0.45);
+
+  // ── 3 기기 (4.15–9.95): 이름이 위로 비켜 나면 노트북이 3/4 각도로 떠올라 정면으로 돌아서며 화면이 켜진다 ──
+  tl.to('#brand', { autoAlpha: 0, y: -u * 6, duration: 0.5, ease: 'power2.in' }, T.device - 0.42);
+  M.scene('#brand', T.name - 0.05, T.device + 0.15);
+  M.scene('#lp', T.device - 0.05, T.ben + 0.3);
+  gsap.set('#lp', { y: H * 0.7, rotationX: 26, rotationY: -30, rotationZ: 4 });
+  tl.to('#lp', { y: 0, rotationX: 0, rotationY: 0, rotationZ: 0, duration: 1.75, ease: 'mo.out' }, T.device);
+  cam.to({ rx: 6, duration: 1.75 }, T.device);
+  M.sfx('whoosh', { volume: 0.5 }, T.device);
+  tl.from('#ui', { autoAlpha: 0, duration: 0.4, ease: 'power1.out' }, T.device + 0.3);                  // 돌아서며 화면이 켜지고 UI가 한 호흡에 정착한다
+  tl.from('.ui-hero > *, .ui-tile, .ui-card', { y: u * 1.4, duration: 0.8, ease: 'mo.out', stagger: 0.035 }, T.device + 0.3);
+
+  const sh = document.createElement('i'); sh.className = 'lp-shadow'; $('#lp .mo-laptop-base').prepend(sh);   // 밑판 아래 접지 그림자
+  tl.from(sh, { autoAlpha: 0, duration: 1.2, ease: 'power1.out' }, T.device + 0.5);
+
+  // 주석: UI 요소 위의 한 점을 노트북 덮개 평면에 박아 두고(덮개와 함께 기운다), 선은 화면 밖 여백까지 뻗는다
+  const face = $('#lp .mo-laptop-lid-face'), F = M.rect(face);
+  const anchor = (sel, ax, ay) => { const r = M.rect(sel), a = document.createElement('i'); a.className = 'anc'; a.style.left = (r.x - F.x + r.w * ax).toFixed(1) + 'px'; a.style.top = (r.y - F.y + r.h * ay).toFixed(1) + 'px'; face.appendChild(a); return { el: a, x: r.x + r.w * ax, y: r.y + r.h * ay }; };
+  const label = (i) => esc(feats[i]) + '<small>FEATURE 0' + (i + 1) + '</small>';
+  const deck = M.rect('#lp').w * 0.09;                                                          // 세로 화면에서 밑판이 차지하는 높이(대략)
+  const shots = stack ? [
+    { a: anchor('#uiCta', 0.3, 0), side: 'top', al: true },
+    { a: anchor('#uiChart', 0.62, 0), side: 'top', al: false },
+    { a: anchor('#uiTiles', 0.12, 1), side: 'bottom', al: true }
+  ] : [
+    { a: anchor('#uiCta', 0.08, 0.5), side: 'left' },
+    { a: anchor('#uiChart', 0.97, 0.36), side: 'right' },
+    { a: anchor('#uiTiles', 0.03, 0.5), side: 'left' }
+  ];
+  const Z = 1.18, half = W / (Z * 1.04) / 2;                                                    // 1.04 = 끝에서의 드리프트
+  shots.forEach((s, i) => {
+    const t0 = T.f[i], out = i < 2 ? T.f[i + 1] + 0.3 : T.dive + 0.3;                         // 카메라가 내려앉는 동안 그려지고, 떠나면 물러난다
+    if (stack) {
+      const top = s.side === 'top', len = top ? s.a.y - F.y + u * 7 : F.y + F.h - s.a.y + deck + u * 6;
+      M.callout(s.a.el, { text: label(i), side: s.side, length: len, out }, t0 + 0.15);
+      face.lastElementChild.classList.add(s.al ? 'al' : 'ar');
+      // 점과 글의 가운데를 화면 가운데에: 노트북은 양옆이 잘리는 클로즈업이 된다
+      const lab = M.rect(face.lastElementChild.querySelector('.mo-callout-label')), zs = 1.45, hw = W / (zs * 1.04) / 2;
+      cam.to({ x: M.clamp(s.a.x, F.x + hw, F.x + F.w - hw), y: (s.a.y + lab.y + lab.h / 2) / 2, zoom: zs, rx: 6, ry: s.al ? 2.5 : -2.5, duration: 1.25 }, t0);
+      return;
+    }
+    const left = s.side === 'left', len = left ? s.a.x - F.x + u * 6 : F.x + F.w - s.a.x + u * 6;
+    M.callout(s.a.el, { text: label(i), side: s.side, length: len, out }, t0 + 0.15);
+    // 글의 바깥 끝을 화면 여백선에 두고 나머지를 그 기능의 UI로 채운다
+    const lab = M.rect(face.lastElementChild.querySelector('.mo-callout-label')), edge = left ? lab.x - u * 10 : lab.x + lab.w + u * 10;
+    cam.to({ x: left ? edge + half : edge - half, y: s.a.y + u * 1.5, zoom: Z, rx: 6, ry: left ? 3.5 : -3.5, duration: 1.25 }, t0);
+  });
+  // 주석마다 화면이 반응한다: 버튼 클릭 · 막대가 자람 · 체크
+  const cur = M.cursor({ parent: '#lp .mo-screen', size: 0.62, hidden: true });
+  cur.show(T.f[0] + 0.05);
+  cur.moveTo('#uiCta', { ax: 0.62, ay: 0.62 }, T.f[0] + 0.05);
+  cur.click({ sfx: true }, T.f[0] + 0.62);
+  M.press('#uiCta', T.f[0] + 0.62);
+  cur.moveTo('#uiCta', { ax: 1.3, ay: 1.6, duration: 0.5 }, T.f[0] + 0.8);
+  cur.hide(T.f[1]);
+  M.reveal('.ui-chart i', { type: 'grow', axis: 'y', duration: 0.8, stagger: 0.05 }, T.f[1] + 0.72);
+  M.fill('.ui-tile .mo-check', { duration: 0.5, ease: 'mo.spring', stagger: 0.12 }, T.f[2] + 0.72);
+
+  // ── 화면 속으로 (9.95–10.85): 카메라가 화면을 뚫고 들어가는 동안 UI가 바탕으로 녹고, 같은 바탕의 평면으로 이어진다 ──
+  const S = M.rect('#scr');
+  tl.to('#ui', { autoAlpha: 0, duration: 0.3, ease: 'power1.in' }, T.dive + 0.42);                  // UI는 카메라가 가속할 때까지 남아 있다가 화면 바탕으로 녹는다
+  cam.to({ x: S.x + S.w / 2, y: S.y + S.h / 2, zoom: 2.75, rx: 0, ry: 0, duration: 0.85, ease: 'power3.in' }, T.dive + 0.05);
+  M.sfx('whoosh', { volume: 0.6, pitch: 1.15 }, T.dive + 0.1);
+  M.scene('#ben', T.ben - 0.2, T.end + 0.2);
+  tl.fromTo('#ben', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2, ease: 'none' }, T.ben - 0.2);
+  M.scene('.mo-world', 0, T.ben + 0.3);
+
+  // ── 4 숫자 (10.85–12.85): 0에서 차오르고, 밑에 포인트 색 막대가 같은 감속으로 자란다 ──
+  tl.fromTo('#benIn', { scale: 1.04 }, { scale: 1, duration: T.end - T.ben + 0.2, ease: 'power2.out' }, T.ben - 0.2);
+  const raw = $('#num').textContent.trim(), val = parseFloat(raw.replace(/,/g, '')), dec = (raw.split('.')[1] || '').replace(/\D/g, '').length;
+  if (isFinite(val)) {
+    const c = M.count('#num', { from: 0, to: val, decimals: dec, duration: 1.2, pulse: { target: '.ben-num', scale: 1.04 } }, T.ben + 0.05);
+    M.sfx('ding', { volume: 0.7 }, c.land);
+  }
+  tl.from('.ben-num', { autoAlpha: 0, y: u * 4, duration: 0.8, ease: 'mo.out' }, T.ben - 0.05);
+  M.reveal('#benText', { type: 'words', duration: 0.85 }, T.ben + 0.05);
+  const noteTxt = $('#note').textContent.trim();
+  if (noteTxt && noteTxt !== '-') M.reveal('#note', { type: 'fade', y: u, duration: 0.6 }, T.ben + 0.15); else $('#note').style.display = 'none';
+  const nr = M.rect('.ben-num'), bt = M.rect('#benText');
+  const barA = { left: W / 2 - u * 6, top: (nr.y + nr.h + bt.y) / 2 - u * 0.35, width: u * 12, height: u * 0.7, borderRadius: u * 0.35 };
+  gsap.set('#bar', { ...barA, scaleX: 0, transformOrigin: '0% 50%' });
+  M.scene('#bar', T.ben, T.end + 0.95);
+  tl.to('#bar', { scaleX: 1, duration: 1.2, ease: 'power3.out' }, T.ben + 0.05);
+
+  // ── 5 엔드카드 (12.85–15): 숫자가 물러나고, 포인트 색 막대가 그대로 버튼이 된다. 끝 1초는 정지 ──
+  M.exit('#benIn > *', { type: 'fade', duration: 0.35, stagger: 0.05 }, T.end - 0.1);
+  M.scene('#end', T.end + 0.1);
+  const cta = M.rect('#endCta');
+  tl.to('#bar', { left: cta.x, top: cta.y, width: cta.w, height: cta.h, borderRadius: cta.h / 2, duration: 0.85, ease: 'mo.inOut' }, T.end + 0.05);
+  tl.from('#endCta', { autoAlpha: 0, duration: 0.01 }, T.end + 0.88);
+  tl.from('#endCta .lbl', { autoAlpha: 0, y: u * 0.8, duration: 0.5, ease: 'mo.out' }, T.end + 0.86);
+  M.sfx('pop', { volume: 0.6 }, T.end + 0.82);
+  if (hasLogo) M.reveal('#end .logo', { type: 'fade', y: -u * 1.6, duration: 0.8 }, T.end + 0.25);
+  M.reveal('#endName', { type: 'words', duration: 0.95, stagger: 0.07 }, T.end + 0.3);
+  M.reveal('#endUrl', { type: 'fade', y: u, duration: 0.7 }, T.end + 1.0);
+  tl.fromTo('#endIn', { scale: 1.035 }, { scale: 1, duration: D - T.end - 0.1, ease: 'power2.out' }, T.end + 0.1);
+});
+</script>
+</body>
+</html>

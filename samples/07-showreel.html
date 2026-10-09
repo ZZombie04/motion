@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Motion Director — 15초 쇼릴</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 요청: "이 스킬이 얼마나 대단한 모션 디자이너인지 보여 주는 15초짜리 모션그래픽 쇼릴을 만들어줘."
+
+     메시지    점 하나로 글자·도형·화면·숫자·공간을 다 연출한다 — 장면을 말하면, 영상이 된다
+     형식      1920×1080 · 15초 · 30fps · 120 BPM(한 박 = 15프레임, data-bpm + M.grid로 모든 타격을 박에) · 음악 없이 내장 효과음만
+     로그라인  문장의 마침표였던 점 하나가 도형으로 변신하고, 커서에 끌려 탭 표시가 되고, 막대로 일어서고,
+               조명을 받아 진짜 구가 되었다가, "Motion"의 ı 위로 떨어져 그 점이 된다 — 컷 없이 한 물체로
+     룩        ink · 포인트 #FF5A1F 한 색(오직 그 점에만) · 흰/회색 · 숫자 장면 2.5초만 paper로 반전
+               Pretendard 780 + Instrument Serif 이탤릭 한 줄 + Geist(제목) + 모노 HUD(장 번호·타임코드·박 표시) · 그레인·비네트
+     비트      0.0–2.0   글자 — 첫 단어에 바짝 붙어 있던 카메라가 물러나며 "모든 [글자는·도형은·화면은·숫자는·공간은 → 움직임은]"
+                         슬롯이 구르고 "점 하나에서 시작됩니다"가 마스크에서 솟는다(위에 "fifteen seconds, one point."). 박 2에 마침표 톡
+               1.6–2.0   글자가 먼저 빠지고 마침표만 남아 움츠린다
+               2.0–4.45  도형 — 박 4에 마침표가 큰 원으로 터지고 박 6 별 · 박 7 블롭(잔상 윤곽 두 겹, 작도선, shape() 코드 라벨),
+                         박 8에 알약으로 줄며 날아가 탭 표시 자리에 앉는다
+               4.0–6.5   화면 — glitch로 앱 창이 켜진다. 커서가 탭 표시를 잡아 끌면 앞 가장자리는 단단한, 뒤는 무른 스프링이라
+                         액체처럼 늘었다 따라붙는다(박 10 잡기 · 박 11 놓으면 '화면'에 붙음 · 박 12 '숫자' 클릭). 흰 글자는 표시 안쪽만
+               6.5–9.0   숫자 — blinds(세로 살)가 열리며 paper로 반전. 탭 표시가 강조 막대로 일어서 회색 막대 넷과 같은 감속으로 자란다
+                         (이징 10 · 도형 11 · 전환 16 · 효과음 20 · 레시피 42 — 엔진에 실제로 든 개수). 박 17에 막대가 점으로 접혀
+                         가운데로 가고, 흰 세계가 그 둘레로 조리개처럼 닫힌다(iris)
+               9.0–12.0  공간 — 같은 크기·같은 색의 구로 바꿔 끼운 뒤 스튜디오 조명이 켜져 진짜 3D(M.three, WebGL)임이 드러난다.
+                         크롬 고리 셋이 구에서 솟아 돌고, 카메라가 돌며 다가간다. 라이저가 차오르며 구가 화면을 덮는다
+               12.0–15.0 제목 — flash(박 24) 뒤 "Motion Director"가 솟고, 점이 위에서 떨어져 ı 위에서 한 번 튕겨 앉는다(박 25).
+                         "장면을 말하면, 영상이 됩니다."가 요청처럼 한글 자모로 쳐지고 13.6초부터 1.4초 정지
+     카메라    풀백 리빌(1.52 → 1, 비스듬→정면) · 도형 앞 느린 오빗 + 박마다 펀치 · 앱 창으로 오토 줌 · 막대 푸시 인 ·
+               (3D 카메라: 크기가 고르게 자라는 돌리 인 + 오빗 → 절정에 구 속으로) · 제목 풀백. 드리프트 1.04 + 손떨림 내내
+     전환      마침표→원(공유 요소) · 알약→탭 표시(공유 요소) + glitch(작도가 디지털 화면으로 켜짐) · blinds(살 = 막대) + paper 반전 ·
+               막대→점 + iris(흰 세계가 점 속으로) · 점→구(조명이 켜짐) · flash(절정의 임팩트) · 하늘에서 떨어진 점→ı의 점
+     소리      swish 0.0 · pop 1.0 · whoosh 2.0 · glitch 4.2 · click 5.0(잡기) · tap 5.5(놓기) · click 6.0 · swipe 6.5(blinds) ·
+               swell 8.4(조명 직전) · riser 10.26 → impact 12.0(flash) · drop 12.5(점 착지) · ding 13.6(문장 끝) — 13개, 음악 없음
+     합격      0초에 이미 큰 글자가 솟는 중 · 점이 한 프레임도 끊기지 않는다(바꿔 낄 때 크기·색·자리가 같다) · 포인트 색은 그 점 하나 ·
+               박마다 화면이 바뀐다 · 제목 1.2초 이상 정지 · check 0/0 · score ≥ 92 */
+
+  .mo-hud .mo-label { font-size: calc(var(--u) * 1.75); color: #7C7C84; }      /* 잉크에서도 종이에서도 읽히는 회색 */
+  #beat { display: inline-block; width: 0.55em; height: 0.55em; margin-right: 0.8em; border-radius: 1px; background: #7C7C84; vertical-align: 0.05em; }
+  #tc { font-variant-numeric: tabular-nums; }
+
+  /* 주인공: 점 하나 — 마침표 · 도형 · 탭 표시 · 막대 · 구 · i의 점 */
+  .hero { position: absolute; left: 0; top: 0; background: var(--accent); border-radius: 50%; z-index: 30; visibility: hidden; }
+  #shape { position: absolute; z-index: 30; overflow: visible; visibility: hidden; }
+  #shape path { vector-effect: non-scaling-stroke; }
+  #shape #blob { fill: var(--accent); }
+  #shape .echo { fill: none; stroke: #FFFFFF; stroke-width: 1.6; }
+
+  /* 공통 슬롯(단어가 마스크 안에서 굴러 바뀐다) */
+  .slot { position: relative; display: inline-block; vertical-align: top; height: 1.06em; }
+  .slot > .m { position: absolute; left: -0.1em; right: -0.12em; top: -0.05em; bottom: -0.06em; overflow: hidden; }   /* 한글은 줄 상자 안에 들어오므로 마스크를 줄에 딱 맞춘다 */
+  .slot .s { position: absolute; left: 0.1em; top: 0.05em; white-space: nowrap; }
+
+  /* 1 글자 */
+  #typeBlock { position: absolute; left: var(--safe-x); top: 28.5%; }
+  .big { margin: 0; font-size: calc(var(--u) * 14.4); font-weight: 780; line-height: 1.06; letter-spacing: -0.045em; white-space: nowrap; }
+  #pAnchor, #tAnchor { display: inline-block; width: 0; height: 0; }
+  #kicker { margin: 0 0 calc(var(--u) * 2.2) calc(var(--u) * 0.4); font-family: var(--font-serif); font-style: italic; font-size: calc(var(--u) * 5.2); line-height: 1.15; letter-spacing: -0.01em; color: var(--fg-2); white-space: nowrap; }
+
+  /* 2 도형 */
+  #construct { position: absolute; left: 0; top: 0; width: var(--W); height: var(--H); overflow: visible; color: rgba(255, 255, 255, 0.16); }
+  #construct .hd { color: rgba(255, 255, 255, 0.42); }
+  #shapeText { position: absolute; left: var(--safe-x); top: 38%; }
+  #shapeCode { margin: calc(var(--u) * 2.4) 0 0; font-family: var(--font-mono); font-size: calc(var(--u) * 2.3); letter-spacing: 0; color: var(--fg-2); white-space: pre; }
+
+  /* 3 화면 */
+  #win { position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 100); height: calc(var(--u) * 52); margin: calc(var(--u) * -26) 0 0 calc(var(--u) * -50); border-radius: calc(var(--u) * 3.4);
+         background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)), #111114;
+         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 calc(var(--u) * 3) calc(var(--u) * 7) calc(var(--u) * -2) rgba(0, 0, 0, 0.7), 0 calc(var(--u) * 10) calc(var(--u) * 18) calc(var(--u) * -6) rgba(0, 0, 0, 0.8); }
+  #winBar { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--u) * 6); display: flex; align-items: center; gap: calc(var(--u) * 1); padding: 0 calc(var(--u) * 2.6); border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+  #winBar > i { width: calc(var(--u) * 1.2); height: calc(var(--u) * 1.2); border-radius: 50%; background: rgba(255, 255, 255, 0.16); }
+  #winBar > .mo-label { position: absolute; left: 50%; transform: translateX(-50%); font-size: calc(var(--u) * 1.7); }
+  #tabs { position: absolute; left: calc(var(--u) * 7.5); right: calc(var(--u) * 7.5); top: calc(var(--u) * 12); height: calc(var(--u) * 9); border-radius: 99px; background: rgba(255, 255, 255, 0.055); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+  .tabrow { position: absolute; inset: calc(var(--u) * 1); display: flex; }
+  .tab { flex: 1; display: flex; align-items: center; justify-content: center; font-size: calc(var(--u) * 3.3); font-weight: 650; letter-spacing: -0.02em; color: var(--fg-2); }
+  #tabsOn .tab { color: var(--on-accent); }
+  #bar { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .barlab { font-style: normal; font-size: calc(var(--u) * 3.3); font-weight: 650; letter-spacing: -0.02em; color: var(--on-accent); white-space: nowrap; }   /* 탭 표시가 막대로 떠날 때 들고 가는 글자 */
+  #pill { position: absolute; top: calc(var(--u) * 1); height: calc(var(--u) * 7); left: 0; width: 0; border-radius: calc(var(--u) * 3.5); background: var(--accent);
+          box-shadow: 0 calc(var(--u) * 0.9) calc(var(--u) * 2.6) calc(var(--u) * -0.8) color-mix(in oklab, var(--accent) 60%, transparent); visibility: hidden; }
+  #uiBody { position: absolute; left: calc(var(--u) * 7.5); right: calc(var(--u) * 7.5); top: calc(var(--u) * 27.5); }
+  #uiWord { margin: 0; font-size: calc(var(--u) * 10.5); font-weight: 780; line-height: 1.06; letter-spacing: -0.045em; }
+  #uiCap { margin-top: calc(var(--u) * 2.4); font-size: calc(var(--u) * 1.8); color: rgba(255, 255, 255, 0.5); }
+
+  /* 4 숫자 (paper) */
+  #dataHead { position: absolute; left: var(--safe-x); top: 21%; }
+  #dataTitle { margin: calc(var(--u) * 2.2) 0 calc(var(--u) * 1.6); font-size: calc(var(--u) * 7.4); font-weight: 760; line-height: 1.1; letter-spacing: -0.04em; }
+  #dataSub { margin: 0; font-size: calc(var(--u) * 2.8); font-weight: 500; color: var(--fg-2); }
+  #chart { position: absolute; left: 39%; right: var(--safe-x); top: 15%; height: 70%; }
+  #chart .mo-chart-val { font-size: calc(var(--u) * 4.4); font-weight: 700; letter-spacing: -0.03em; }
+  #chart .mo-chart-lab { font-family: var(--font-sans); font-size: calc(var(--u) * 2.5); font-weight: 600; letter-spacing: -0.01em; color: var(--fg-2); }
+  #chart .mo-chart-fill { background: rgba(var(--tint), 0.13); border-radius: calc(var(--u) * 1.2) calc(var(--u) * 1.2) calc(var(--u) * 0.3) calc(var(--u) * 0.3); }
+  #chart .hi .mo-chart-fill { visibility: hidden; }                                /* 강조 막대는 주인공(점)이 맡는다 */
+  #chart.mo-chart-column::after { bottom: calc(var(--u) * 4.4); }
+
+  /* 5 공간 */
+  #cyc { position: absolute; inset: 0; background: radial-gradient(ellipse 46% 52% at 50% 50%, rgba(255, 255, 255, 0.075), transparent 72%); }
+  #gl { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+
+  /* 6 제목 */
+  #titleBlock { position: absolute; left: 0; right: 0; top: 30.5%; text-align: center; }
+  #ttlLabel { font-size: calc(var(--u) * 1.8); letter-spacing: 0.32em; }
+  #ttl { margin: calc(var(--u) * 3.4) 0 calc(var(--u) * 3.6); font-family: var(--font-latin); font-size: calc(var(--u) * 15.5); font-weight: 700; line-height: 1.05; letter-spacing: -0.052em; white-space: nowrap; }
+  #tagline { position: relative; display: inline-block; margin: 0; font-size: calc(var(--u) * 4.2); font-weight: 560; letter-spacing: -0.025em; color: var(--fg-2); text-align: left; }
+  #tagline .ghost { visibility: hidden; }                                          /* 완성된 문장의 폭만 차지 → 치는 동안 가운데가 흔들리지 않는다 */
+  #tagTyped { position: absolute; left: 0; top: 0; width: max-content; white-space: nowrap; }
+  #tagTyped .mo-typed { white-space: pre; }                                       /* 캐럿이 다음 줄로 넘어가지 않게 */
+  #iDot { box-shadow: 0 0 calc(var(--u) * 1.6) color-mix(in oklab, var(--accent) 55%, transparent); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="Motion Director — 쇼릴" data-width="1920" data-height="1080" data-fps="30" data-duration="15" data-bpm="120" data-theme="ink" data-accent="#FF5A1F">
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-dotgrid" style="opacity:.32"></div>
+    <div class="mo-glow" id="glow" style="left:56%;top:50%;--s:calc(var(--u)*170);--c:#FFFFFF;--a:.045"></div>
+  </div>
+
+  <div class="mo-world">
+    <!-- 1 글자 -->
+    <section class="mo-scene" id="sType">
+      <div id="typeBlock">
+        <p id="kicker">fifteen seconds, one point.</p>
+        <h1 class="big" id="lineA">모든 <span class="slot" id="slotA"><span class="m"><span class="s">글자는</span><span class="s">도형은</span><span class="s">화면은</span><span class="s">숫자는</span><span class="s">공간은</span><span class="s">움직임은</span></span></span></h1>
+        <h1 class="big" id="lineB">점 하나에서 시작됩니다<i id="pAnchor"></i></h1>
+      </div>
+    </section>
+
+    <!-- 2 도형 -->
+    <section class="mo-scene" id="sShape">
+      <svg id="construct" class="mo-draw"></svg>
+      <div id="shapeText">
+        <h2 class="big" id="shapeWord">도형</h2>
+        <p id="shapeCode">shape('circle')</p>
+      </div>
+    </section>
+
+    <!-- 3 화면 -->
+    <section class="mo-scene" id="sUI">
+      <div id="win">
+        <div id="winBar"><i></i><i></i><i></i><span class="mo-label">Motion · Preview</span></div>
+        <div id="tabs">
+          <div class="tabrow" id="tabsBase"><span class="tab">글자</span><span class="tab">도형</span><span class="tab">화면</span><span class="tab">숫자</span><span class="tab">공간</span></div>
+          <i id="pill"></i>
+          <div class="tabrow" id="tabsOn" data-mo-ignore aria-hidden="true"><span class="tab">글자</span><span class="tab">도형</span><span class="tab">화면</span><span class="tab">숫자</span><span class="tab">공간</span></div>
+        </div>
+        <div id="uiBody">
+          <h2 id="uiWord"><span class="slot" id="slotU"><span class="m"><span class="s">도형</span><span class="s">화면</span><span class="s">숫자</span></span></span></h2>
+          <p class="mo-label" id="uiCap">Spring · snappy ⟷ gentle</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 숫자 -->
+    <section class="mo-scene" id="sData" data-theme="paper">
+      <div id="dataHead">
+        <p class="mo-label">Toolkit · built in</p>
+        <h2 id="dataTitle">준비된 도구</h2>
+        <p id="dataSub">엔진에 기본으로 든 개수</p>
+      </div>
+      <div id="chart"></div>
+    </section>
+
+    <!-- 5 공간 -->
+    <section class="mo-scene" id="s3d">
+      <div id="cyc"></div>
+      <canvas id="gl"></canvas>
+    </section>
+
+    <!-- 6 제목 -->
+    <section class="mo-scene" id="sTitle">
+      <div id="titleBlock">
+        <p class="mo-label" id="ttlLabel">A motion graphics skill</p>
+        <h1 id="ttl">Mot<span id="iStem">ı</span>on Director<i id="tAnchor"></i></h1>
+        <p id="tagline"><span class="ghost">장면을 말하면, 영상이 됩니다.</span><span id="tagTyped"></span></p>
+      </div>
+    </section>
+
+    <!-- 주인공 -->
+    <i class="hero" id="pDot"></i>
+    <svg id="shape" viewBox="0 0 100 100"><g id="shapeG"><path class="echo" id="echo2"/><path class="echo" id="echo1"/><path id="blob"/></g></svg>
+    <i class="hero" id="bar"><b class="barlab" data-mo-ignore>숫자</b></i>
+    <i class="hero" id="iDot"></i>
+  </div>
+
+  <div class="mo-hud">
+    <span class="mo-label tl" id="hudCh">01 · Type</span>
+    <span class="mo-label tr">Showreel · 2026</span>
+    <span class="mo-label bl" id="tc">00:00:00:00</span>
+    <span class="mo-label br"><i id="beat"></i>120 BPM</span>
+  </div>
+  <div class="mo-vignette" id="vig"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H } = M;
+  const b = M.grid();                                                        // data-bpm 120 → b(n) = n × 0.5초 = 15프레임
+  const ACC = getComputedStyle(M.stage).getPropertyValue('--accent').trim();
+  const T = { shape: b(4), ui: b(8), data: b(13), space: b(18), end: b(24) };
+  const E = { io: M.ease('mo.inOut'), out: M.ease('mo.out'), cam: M.ease('mo.cam') };
+  const lerp = M.lerp, clamp = M.clamp, smooth = M.smooth;
+
+  // ── 무대: 검정 스튜디오. 카메라는 끝까지 아주 천천히 다가가고 손으로 든 듯 흔들린다 ──
+  M.grain();
+  cam.drift({ zoom: 1.04 });
+  cam.float({ rot: 0.22, pos: u * 0.22, period: 9 });
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, pre: 0.45, duration: 0.6, stagger: 0.06 }, 0);
+  M.text('#hudCh', [[T.shape, '02 · Shape'], [T.ui + 0.2, '03 · Interface'], [T.data, '04 · Data'], [T.space, '05 · Space'], [T.end, '06 · Title']], { scramble: 0.35 });
+  const tcEl = M.$('#tc'), beatEl = M.$('#beat'), two = (n) => String(n).padStart(2, '0');
+  M.onFrame((t, f) => {                                                      // 타임코드는 실제 프레임, 사각형은 박마다 깜박
+    const s = '00:00:' + two(Math.floor(f / 30)) + ':' + two(f % 30);
+    if (tcEl.textContent !== s) tcEl.textContent = s;
+    const k = Math.floor(t / b.len + 1e-6), p = Math.exp(-(t - k * b.len) / 0.11);
+    beatEl.style.opacity = (0.35 + 0.65 * p).toFixed(3);
+  });
+  M.scene('#sType', 0, T.shape + 0.6).scene('#sShape', T.shape, T.ui + 0.5).scene('#s3d', T.space - 0.55);
+
+  // ── 슬롯: 마스크 안에서 단어가 위로 굴러 바뀐다(글자 장면 · 화면 장면이 같은 문법) ──
+  function roll(sel, times, o) {
+    const items = M.$$(sel + ' .s'), step = o.step, ease = o.ease || 'power1.inOut';
+    gsap.set(M.$(sel), { width: Math.max(...items.map((e) => e.offsetWidth)) });
+    items.forEach((el, k) => {
+      const tIn = times[k], tOut = times[k + 1], fin = k === items.length - 1;
+      if (k) tl.fromTo(el, { yPercent: 110 }, { yPercent: 0, duration: fin ? o.last : step, ease: fin ? o.lastEase : ease }, tIn);
+      if (!fin) tl.fromTo(el, { yPercent: 0 }, { yPercent: -110, duration: step, ease, immediateRender: false }, tOut);
+      M.scene(el, k ? tIn : 0, fin ? null : tOut + step + 0.02);
+    });
+  }
+
+  // ══ 1 글자 (0–2.0s): 비스듬한 화면이 바로 서며 두 줄이 솟고, 슬롯이 장면 이름을 훑은 뒤 '움직임은'에 선다 ══
+  const blk = M.rect('#typeBlock');                                          // 0초: 첫 단어에 바짝 붙어 있다가 물러나며 문장 전체를 드러낸다
+  cam.set({ x: blk.x + blk.w * 0.3, y: blk.y + blk.h * 0.36, zoom: 1.52, rx: 5, ry: -9 });
+  cam.to({ x: W / 2, y: H / 2, zoom: 1, rx: 0, ry: 0, duration: 1.45, ease: 'power3.inOut' }, 0);
+  M.reveal('#kicker', { type: 'words', pre: 0.5, duration: 0.8, stagger: 0.04 }, 0);
+  M.reveal('#lineA', { type: 'rise', pre: 0.45, duration: 0.9 }, 0);
+  roll('#slotA', [0, 0.27, 0.42, 0.56, 0.7, 0.9], { step: 0.15, last: 0.42, lastEase: 'mo.out' });
+  M.reveal('#lineB', { type: 'words', duration: 0.7, stagger: 0.05 }, b(1));
+  M.sfx('swish', { volume: 0.55 }, 0.04);
+  // 마침표 = 주인공의 첫 모습. 박 2에 톡
+  const fs = parseFloat(getComputedStyle(M.$('#lineB')).fontSize), anc = M.rect('#pAnchor');
+  const dd = fs * 0.19, dot0 = { x: anc.x + fs * 0.05, y: anc.y - dd - fs * 0.005 };
+  gsap.set('#pDot', { left: dot0.x, top: dot0.y, width: dd, height: dd });
+  M.scene('#pDot', b(2), T.shape);
+  tl.fromTo('#pDot', { scale: 0 }, { scale: 1, duration: 0.5, ease: 'mo.pop' }, b(2));
+  M.sfx('pop', b(2));
+  // 박 3.5에 글자가 먼저 빠지고 마침표만 남는다 → 움츠렸다가 박 4에 터진다
+  M.exit('#kicker', { type: 'words', duration: 0.34, stagger: 0.015 }, b(3.5) - 0.12);
+  M.exit('#lineA', { type: 'rise', duration: 0.36 }, b(3.5) - 0.09);
+  M.exit('#lineB', { type: 'words', duration: 0.36, stagger: 0.025 }, b(3.5) - 0.06);
+  tl.to('#pDot', { scale: 0.72, duration: 0.14, ease: 'power2.out' }, T.shape - 0.14);       // 예비 동작: 날아가기 전에 움츠린다
+
+  // ══ 2 도형 (2.0–4.45s): 마침표가 부풀어 큰 원이 되고, 박마다 다른 도형이 된다 ══
+  const SZ = u * 52, SC = { x: W * 0.64, y: H * 0.5 };                        // 도형의 무대(100×100 상자를 52u로)
+  gsap.set('#shape', { left: SC.x - SZ / 2, top: SC.y - SZ / 2, width: SZ, height: SZ });
+  ['#blob', '#echo1', '#echo2'].forEach((p) => M.$(p).setAttribute('d', M.shape('circle')));
+  M.scene('#shape', T.shape, T.ui + 0.45);
+  const d0c = { x: dot0.x + dd / 2, y: dot0.y + dd / 2 }, s0 = (dd * 0.72) / SZ;
+  tl.fromTo('#shape', { x: d0c.x - SC.x, y: d0c.y - SC.y, scale: s0 }, { x: 0, y: 0, scale: 1, duration: 0.55, ease: 'mo.inOut' }, T.shape);
+  M.sfx('whoosh', { volume: 0.8 }, T.shape);
+  // 작도선: 십자선 · 외접원 · 바운딩 박스 · 모서리 핸들
+  const R0 = SZ / 2, cn = M.$('#construct');
+  cn.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  cn.innerHTML = `<line x1="${SC.x - R0 - u * 14}" y1="${SC.y}" x2="${SC.x + R0 + u * 14}" y2="${SC.y}" stroke-width="1.5"/>`
+    + `<line x1="${SC.x}" y1="${SC.y - R0 - u * 8}" x2="${SC.x}" y2="${SC.y + R0 + u * 8}" stroke-width="1.5"/>`
+    + `<rect x="${SC.x - R0}" y="${SC.y - R0}" width="${SZ}" height="${SZ}" stroke-width="1.5"/>`
+    + `<circle cx="${SC.x}" cy="${SC.y}" r="${R0 * 1.18}" stroke-width="1.5"/>`
+    + [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, c]) => `<rect class="hd" x="${SC.x + a * R0 - 6}" y="${SC.y + c * R0 - 6}" width="12" height="12" stroke-width="2"/>`).join('');
+  M.reveal('#construct', { type: 'draw', duration: 0.8, stagger: 0.06 }, T.shape + 0.25);
+  M.reveal('#shapeWord', { type: 'rise', duration: 0.85 }, T.shape + 0.3);
+  M.reveal('#shapeCode', { type: 'fade', y: u * 1.2, duration: 0.6 }, T.shape + 0.36);
+  M.text('#shapeCode', [[b(6), "shape('star', { n: 5 })"], [b(7), "shape('blob', { seed: 7 })"], [b(8), "shape('rect', { r: h / 2 })"]], { scramble: 0.32 });
+  // 박 6·7에 변신. 잔상 두 겹이 0.05·0.1초 늦게 따라온다
+  const SHAPES = [M.shape('star', { n: 5, inner: 0.5 }), M.shape('blob', { seed: 7, n: 7, wobble: 0.3 })];
+  M.morphPath('#blob', SHAPES, { duration: 0.42, hold: 0.08, ease: 'mo.out' }, b(6));
+  M.morphPath('#echo1', SHAPES, { duration: 0.42, hold: 0.08, ease: 'mo.out' }, b(6) + 0.05);
+  M.morphPath('#echo2', SHAPES, { duration: 0.42, hold: 0.08, ease: 'mo.out' }, b(6) + 0.1);
+  tl.fromTo('#blob', { rotation: 0 }, { rotation: 36, duration: 1.5, ease: 'none', svgOrigin: '50 50' }, b(5));
+  tl.fromTo('#echo1', { rotation: 0, opacity: 0 }, { rotation: 48, opacity: 0.38, duration: 1.5, ease: 'none', svgOrigin: '50 50' }, b(5));
+  tl.fromTo('#echo2', { rotation: 0, opacity: 0 }, { rotation: 60, opacity: 0.2, duration: 1.5, ease: 'none', svgOrigin: '50 50' }, b(5));
+  cam.to({ zoom: 1.06, ry: 5, rx: 1.5, duration: 2.0, ease: 'sine.inOut' }, T.shape + 0.2);
+  [b(5), b(6), b(7)].forEach((t) => cam.punch({ scale: 1.018, duration: 0.35 }, t));          // 도형이 바뀌는 박마다 화면 전체가 박을 받는다
+  M.exit('#shapeText', { type: 'fade', duration: 0.3 }, T.ui - 0.05);
+
+  // ══ 3 화면 (4.0–6.5s): 도형이 알약으로 줄어들며 날아가 탭 표시가 되고, glitch로 앱 창이 켜진다 ══
+  M.transition('glitch', '#sShape', '#sUI', { at: T.ui, duration: 0.45, sfx: true });
+  const row = M.rect('#tabsBase'), cellW = row.w / 5, pillH = M.$('#pill').offsetHeight, pillTop = M.rect('#pill').y;
+  const cellL = (i) => i * cellW, cellR = (i) => (i + 1) * cellW, cellC = (i) => row.x + (i + 0.5) * cellW;
+  // 알약으로: 100 상자 안의 rect는 위쪽에 붙어 그려지므로 같은 이징으로 g를 내려 가운데를 맞춘다
+  const hp = 100 * pillH / cellW, sP = cellW / SZ, tP = T.ui, dP = 0.45;
+  M.morphPath('#blob', M.shape('rect', { w: 100, h: hp, r: hp / 2 }), { duration: dP, ease: 'mo.inOut' }, tP);
+  tl.to('#shapeG', { y: (100 - hp) / 2, duration: dP, ease: 'mo.inOut' }, tP);
+  tl.to('#blob', { rotation: 0, duration: dP, ease: 'mo.inOut', svgOrigin: '50 50' }, tP);
+  tl.to('#echo1, #echo2', { opacity: 0, duration: 0.2, ease: 'power1.in' }, tP);
+  tl.to('#shape', { x: cellC(1) - SC.x, y: pillTop + pillH / 2 - SC.y, scale: sP, duration: dP, ease: 'mo.inOut' }, tP);
+  M.exit('#construct', { type: 'fade', y: 0, duration: 0.25 }, tP);
+
+  // 탭 표시: 왼쪽·오른쪽 가장자리가 따로 움직이는 스프링 — 앞 가장자리는 snappy, 뒤 가장자리는 gentle
+  const tPill = tP + dP;                                                     // 이 순간 SVG 알약 → 탭 표시(같은 자리·크기·색)
+  M.scene('#pill', tPill, T.data);
+  M.scene('#tabsOn', tPill, T.data);
+  const cur = M.cursor({ x: W * 0.8, y: H * 0.88, hidden: true });
+  const grabY = pillTop + pillH * 0.62, x0 = cellC(1), x1 = cellC(2) + cellW * 0.62, tDrag = b(10), dDrag = 0.4;
+  cur.show(tPill);
+  cur.moveTo({ x: x0, y: grabY }, { duration: 0.46 }, tPill);
+  cur.drag({ x: x1, y: grabY }, { duration: dDrag, sfx: true }, tDrag);       // 누름 → 끌기 → 놓기(click · tap)
+  const tRel = tDrag + 0.1 + dDrag;
+  cur.moveTo({ x: cellC(3), y: grabY }, { duration: 0.36 }, tRel + 0.08);
+  cur.click(b(12));
+  M.sfx('click', b(12));
+  M.press('#tabsBase .tab:nth-child(4), #tabsOn .tab:nth-child(4)', b(12));
+  cur.hide(b(12) + 0.42);
+  function track(v0, steps) {                                                 // 목표가 바뀔 때마다 그 자리에서 새 스프링(중첩)
+    let prev = v0; const parts = [];
+    steps.forEach(([t, v, cfg]) => { const d = v - prev; prev = v; if (Math.abs(d) > 0.01) parts.push(M.springValue([[0, 0], [t, d]], cfg)); });
+    return (t) => parts.reduce((s, f) => s + f(t), v0);
+  }
+  const dragX = (t) => lerp(x0, x1, E.io(clamp((t - tDrag - 0.1) / dDrag, 0, 1))) - row.x;
+  const follow = []; for (let k = 1; k <= 30; k++) { const t = tDrag + 0.1 + (dDrag * k) / 30; follow.push([t, dragX(t)]); }
+  const half = cellW / 2;
+  // 끄는 동안은 손가락 아래에 붙어 있어야 하므로 더 단단한 스프링(앞 2000/72 · 뒤 520/40), 놓은 뒤·클릭은 프리셋
+  const lead = { stiffness: 2000, damping: 72 }, trail = { stiffness: 520, damping: 40 };
+  const Lx = track(cellL(1), [...follow.map(([t, x]) => [t, x - half, trail]), [tRel, cellL(2), 'snappy'], [b(12), cellL(3), 'gentle']]);
+  const Rx = track(cellR(1), [...follow.map(([t, x]) => [t, x + half, lead]), [tRel, cellR(2), 'gentle'], [b(12), cellR(3), 'snappy']]);
+  const pill = M.$('#pill'), on = M.$('#tabsOn'), rad = pillH / 2;
+  M.onFrame((t) => {
+    const L = Lx(t), R = Rx(t);
+    pill.style.left = (u + L).toFixed(2) + 'px'; pill.style.width = Math.max(pillH, R - L).toFixed(2) + 'px';
+    on.style.clipPath = `inset(0px ${(row.w - R).toFixed(2)}px 0px ${L.toFixed(2)}px round ${rad.toFixed(1)}px)`;   // 흰 글자는 표시 안쪽만
+  });
+  roll('#slotU', [0, tRel, b(12)], { step: 0.3, ease: 'power3.inOut', last: 0.3, lastEase: 'power3.inOut' });
+  M.reveal('#uiCap', { type: 'fade', y: 0, duration: 0.5 }, T.ui + 0.3);
+  cam.to({ y: row.y + row.h / 2 + u * 6, zoom: 1.3, rx: 2, ry: -3, duration: 1.4 }, T.ui + 0.25);    // 커서가 갈 곳으로 먼저 다가간다
+  cam.to({ rx: 1, ry: 2.5, duration: 0.8, ease: 'sine.inOut' }, T.ui + 1.68);
+
+  // ══ 4 숫자 (6.5–9.0s): blinds의 세로 살이 열리며 paper로 반전. 탭 표시가 강조 막대로 일어선다 ══
+  M.transition('blinds', '#sUI', '#sData', { at: T.data, duration: 0.75, count: 6, sfx: true });
+  M.chart('#chart', { type: 'column', data: [10, 11, 16, 20, 42], labels: ['이징', '도형', '전환', '효과음', '레시피'], duration: 0.95, stagger: 0.08 }, T.data + 0.18);
+  const hf = M.rect('#chart .hi .mo-chart-fill'), base = hf.y + hf.h, seedH = hf.w * 0.34;
+  const L65 = Lx(T.data), R65 = Rx(T.data);
+  M.scene('#bar', T.data, T.space);
+  const px = (v) => v.toFixed(2) + 'px';                                      // 단위를 꼭 적는다(.hero의 50%를 물려받지 않게)
+  const corners = (a, c) => ({ borderTopLeftRadius: px(a), borderTopRightRadius: px(a), borderBottomLeftRadius: px(c), borderBottomRightRadius: px(c) });   // 회색 막대와 같은 모서리(위 1.2u · 아래 0.3u)
+  tl.fromTo('#bar', { left: row.x + L65, top: pillTop, width: R65 - L65, height: pillH, ...corners(rad, rad) },
+    { left: hf.x, top: base - seedH, width: hf.w, height: seedH, ...corners(u * 1.2, u * 0.3), duration: 0.5, ease: 'mo.inOut', immediateRender: false }, T.data);
+  tl.to('#bar', { top: hf.y, height: hf.h, duration: 0.95, ease: 'mo.out' }, T.data + 0.5);
+  tl.fromTo('#bar .barlab', { opacity: 1 }, { opacity: 0, duration: 0.2, ease: 'power1.in', immediateRender: false }, T.data + 0.04);
+  cam.to({ x: W / 2, y: H / 2, zoom: 1, rx: 0, ry: 0, duration: 0.9 }, T.data);
+  cam.to({ zoom: 1.06, rx: -2, x: W / 2 + u * 6, duration: 1.1, ease: 'sine.inOut' }, T.data + 0.9);
+  tl.to('#vig', { opacity: 0.25, duration: 0.6, ease: 'power1.inOut' }, T.data);
+  // 막대가 점으로 접히고, 흰 세계가 그 점 속으로 닫힌다
+  const D3 = u * 9, tC = b(17);
+  tl.to('#bar', { width: D3, height: D3, ...corners(D3 / 2, D3 / 2), duration: 0.3, ease: 'mo.inOut' }, tC);
+  tl.to('#bar', { left: W / 2 - D3 / 2, top: H / 2 - D3 / 2, duration: 0.36, ease: 'mo.inOut' }, tC);   // 점이 먼저 가운데에 닿고, 흰 원이 그 둘레로 조리개처럼 닫힌다
+  M.iris('#sData', { x: '50%', y: '50%', from: 1, to: 0, duration: 0.5, ease: 'power2.inOut' }, tC);
+  M.scene('#sData', T.data, T.space);
+  cam.to({ x: W / 2, y: H / 2, zoom: 1, rx: 0, ry: 0, duration: 0.5, ease: 'mo.inOut' }, tC);
+  tl.to('#vig', { opacity: 1, duration: 0.5 }, tC);
+  M.sfx('swell', { volume: 0.9 }, tC - 0.1);
+
+  // ══ 5 공간 (9.0–12.0s): 납작한 점에 조명이 켜지며 진짜 구가 된다. 고리가 솟고 카메라가 돌며 다가간다 ══
+  const T3 = T.space, TC = T.end - 0.62;                                     // 3D 시작 · 절정 시작
+  M.three('#gl', (THREE, { scene, camera, renderer }) => {
+    const col = new THREE.Color(ACC), fov = 30;
+    camera.fov = fov; camera.near = 0.1; camera.far = 200; camera.updateProjectionMatrix();
+    // 스튜디오: 어두운 방 안의 소프트박스 셋을 환경광으로 굽는다(반사에 맺히는 빛)
+    const pmrem = new THREE.PMREMGenerator(renderer), room = new THREE.Scene();
+    room.add(new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), new THREE.MeshBasicMaterial({ color: 0x060607, side: THREE.BackSide })));
+    const box = (w, h, s, p) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(s, s, s), side: THREE.DoubleSide })); m.position.set(p[0], p[1], p[2]); m.lookAt(0, 0, 0); room.add(m); };
+    box(12, 7, 7, [-7, 10, 7]);  box(2.2, 14, 4.5, [12, 1, -5]);  box(2, 12, 1.6, [-13, 0, -4]);  box(18, 3, 0.35, [0, -11, 6]);
+    scene.environment = pmrem.fromScene(room, 0.025).texture;
+    const ball = new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.36, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: col, emissiveIntensity: 1, envMapIntensity: 0 });
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 96), ball);
+    scene.add(sphere);
+    const chrome = new THREE.MeshPhysicalMaterial({ color: 0xF4F4F6, metalness: 1, roughness: 0.14, envMapIntensity: 1.25 });
+    const rings = [[1.46, 0.021, [1.1, 0.2, 0.3], [0.9, 0, 0]], [1.78, 0.019, [0.35, 0.9, -0.5], [0, 0.7, 0]], [2.1, 0.017, [1.5, -0.6, 1.0], [0.5, 0, 0.55]]].map(([r, tube, rot, spin], i) => {
+      const g = new THREE.Group(), m = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 24, 320), chrome);
+      g.rotation.set(rot[0], rot[1], rot[2]); g.add(m); scene.add(g);
+      return { g, m, rot, spin, grow: M.springValue([[0, 0], [T3 + 0.32 + i * 0.13, 1]], 'smooth') };
+    });
+    const key = new THREE.DirectionalLight(0xffffff, 0), rim = new THREE.DirectionalLight(0xffffff, 0);
+    key.position.set(-4, 5, 6); rim.position.set(5, 1.5, -6); scene.add(key, rim);
+    // 바꿔 끼우는 순간 구의 지름 = 점의 지름(D3): 원근 투영에서 거리를 풀어 낸다
+    const tanH = Math.tan((fov * Math.PI) / 360), rPx = (D3 / 2), d0 = Math.hypot((H / 2) / (rPx * tanH), 1), d1 = Math.hypot((H / 2) / (u * 15.5 * tanH), 1);
+    renderer.compile(scene, camera);
+    const climb = M.ease('power3.in'), grow = M.ease('power2.out');
+    return (t) => {
+      const show = t >= T3 - 1e-6 && t < T.end + 0.05;
+      scene.visible = show; if (!show) return;
+      const k = t - T3, lit = smooth(k / 0.8), cl = clamp((t - TC) / 0.62, 0, 1), rush = climb(cl);
+      ball.emissiveIntensity = 1 - 0.95 * lit + 0.9 * rush;
+      ball.envMapIntensity = 1.15 * lit; key.intensity = 2.6 * lit; rim.intensity = 3.0 * lit;
+      const fly = grow(clamp((k - 0.04) / 2.3, 0, 1));                      // 크기가 고르게 자라도록 1/거리를 보간한다(빨리 출발해 길게 착지)
+      const dist = lerp(1 / lerp(1 / d0, 1 / d1, fly) * (1 - 0.07 * smooth((k - 1.6) / 1.4)), 1.18, rush);
+      const az = 0.62 * fly + 0.05 * k + 0.55 * rush, el = 0.2 * fly - 0.1 * rush;
+      camera.position.set(dist * Math.cos(el) * Math.sin(az), dist * Math.sin(el), dist * Math.cos(el) * Math.cos(az));
+      camera.lookAt(0, 0, 0);
+      rings.forEach((r, i) => {
+        const s = Math.max(0.0001, r.grow(t) * (1 - rush)), w = k + 2.2 * rush * rush;
+        r.g.scale.setScalar(s);
+        r.g.rotation.set(r.rot[0] + r.spin[0] * w, r.rot[1] + r.spin[1] * w, r.rot[2] + r.spin[2] * w);
+      });
+    };
+  });
+  M.sfx('riser', { volume: 0.85 }, T.end - 1.74);
+
+  // ══ 6 제목 (12.0–15.0s): 절정의 섬광 뒤 "Motion Director"가 솟고, 점이 위에서 떨어져 ı 위에 앉는다 ══
+  M.transition('flash', '#s3d', '#sTitle', { at: T.end - 0.25, duration: 0.5, sfx: true });
+  M.reveal('#ttl', { type: 'chars', tight: true, duration: 0.85, stagger: 0.028 }, T.end - 0.08);
+  M.reveal('#ttlLabel', { type: 'fade', y: 0, duration: 0.7 }, T.end + 0.12);
+  const tType = b(25.5), dType = 0.85;                                        // 점이 앉은 반 박 뒤부터 — 13.6초에 모든 것이 서고 1.4초 정지
+  M.scene('#tagTyped', tType);                                               // 캐럿은 치기 시작할 때 켜진다
+  M.type('#tagTyped', '장면을 말하면, 영상이 됩니다.', { duration: dType, jitter: 0.35, caretBefore: false }, tType);   // 마지막 줄은 요청처럼 한글 자모로 쳐진다
+  M.sfx('ding', { volume: 0.75 }, tType + dType);
+  // ı의 점 자리: 같은 글꼴의 'i'를 캔버스에 그려 점(위쪽 덩어리)의 위치와 크기를 잰다
+  const tfs = parseFloat(getComputedStyle(M.$('#ttl')).fontSize), tw = getComputedStyle(M.$('#ttl')).fontWeight;
+  const cv = document.createElement('canvas'); cv.width = Math.ceil(tfs * 0.8); cv.height = Math.ceil(tfs * 1.4);
+  const cx = cv.getContext('2d', { willReadFrequently: true }), baseY = Math.round(tfs * 1.1);
+  cx.font = `${tw} ${tfs}px Geist`; cx.fillStyle = '#000'; cx.fillText('i', Math.round(tfs * 0.2), baseY);
+  const ink = cx.getImageData(0, 0, cv.width, cv.height).data, rows = [];
+  for (let y = 0; y < cv.height; y++) { let x0r = -1, x1r = -1; for (let x = 0; x < cv.width; x++) if (ink[(y * cv.width + x) * 4 + 3] > 110) { if (x0r < 0) x0r = x; x1r = x; } rows.push([x0r, x1r]); }
+  let y0 = rows.findIndex((r) => r[0] >= 0), y1 = y0; while (rows[y1 + 1] && rows[y1 + 1][0] >= 0) y1++;                // 맨 위 덩어리 = 점
+  const dotC = { x: (rows[y0][0] + rows[y0][1] + rows[Math.round((y0 + y1) / 2)][0] + rows[Math.round((y0 + y1) / 2)][1]) / 4 - tfs * 0.2, y: (y0 + y1) / 2 - baseY };
+  const stem = M.rect('#iStem .mo-c'), tb = M.rect('#tAnchor');
+  const DI = Math.max(u * 2.2, (y1 - y0) * 1.26), land = { x: stem.x + dotC.x + 0.5, y: tb.y + dotC.y };
+  gsap.set('#iDot', { left: land.x - DI / 2, top: land.y - DI / 2, width: DI, height: DI, transformOrigin: '50% 100%' });
+  const tLand = b(25), hop = DI * 1.6;
+  M.scene('#iDot', T.end + 0.05);
+  tl.fromTo('#iDot', { y: -H * 0.42 }, { y: 0, duration: 0.42, ease: 'power2.in' }, tLand - 0.42);   // 중력으로 떨어진다
+  tl.to('#iDot', { scaleX: 1.18, scaleY: 0.8, duration: 0.06, ease: 'power2.out' }, tLand);
+  tl.to('#iDot', { scaleX: 1, scaleY: 1, duration: 0.3, ease: 'mo.spring' }, tLand + 0.06);
+  tl.to('#iDot', { y: -hop, duration: 0.16, ease: 'power2.out' }, tLand + 0.02);
+  tl.to('#iDot', { y: 0, duration: 0.15, ease: 'power2.in' }, tLand + 0.18);
+  M.pulse('#iDot', { scale: 1.12, duration: 0.5 }, tLand + 0.4);
+  M.sfx('drop', { volume: 0.9 }, tLand);
+  cam.set({ x: W / 2, y: H / 2, zoom: 1.07, rx: 0, ry: 0 }, T.end);
+  cam.to({ zoom: 1, duration: 2.6, ease: 'mo.cam' }, T.end);
+});
+</script>
+</body>
+</html>

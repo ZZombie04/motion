@@ -154,7 +154,7 @@ M.tap('#row2', 4.1);                         // 손가락 터치 표시(폰 UI)
 M.pulse('#badge', { scale: 1.08 }, 6.0);     // 한 번 강조
 ```
 
-이동 시간은 거리에서 자동 계산된다(0.5–1.25초). `M.cursor({ label: '주원' })`이면 이름표가 붙는다.
+이동 시간은 거리에서 자동 계산된다(0.5–1.25초). `M.cursor({ label: '하늘' })`이면 이름표가 붙는다.
 
 **기기 화면 속**을 가리킬 때는 커서를 그 화면에 붙인다: `M.cursor({ parent: '#lp .mo-screen', size: 0.6 })` — 화면과 함께 기울고, `{ x, y }`는 그 화면 안의 px이 된다(`size`는 커서 배율).
 `M.tap`은 대상이 `.mo-screen` 안에 있으면 자동으로 그 화면 위에 그려진다(화면에 잘리고 함께 기운다. 크기는 `size` px, 기본은 화면 폭의 20%).
@@ -301,3 +301,215 @@ M.video('#rec', { start: 1.0, from: 12.5, rate: 1 })   // 1.0초부터 원본 12
 렌더러는 크게 찍은 화면이 원래 화면과 같은 그림인지 구간마다 대조하고, 다르면(메모리 부족으로 일부가 빠지는 등) 그 구간은 일반 캡처로 대체한 뒤 결과 줄에 `보정 생략 N프레임`이라고 알린다. 3D 층이 아주 많은 장면에서 이 표시가 나오면 `MOTION_TILE_MB=12000`처럼 타일 메모리를 늘려 다시 렌더한다(기본 6144).
 
 CLI를 실행할 때마다 컴포지션 옆의 `_motion/`이 엔진과 다르면 자동으로 갱신된다(갱신하면 한 줄로 알린다).
+
+
+---
+
+# 2부 — 소리·자막·선언형·스프링·도형·차트·3D
+
+아래 기능은 1부와 함께 쓴다. 1부의 API는 그대로이고, 모든 시각 인자는 숫자(초)뿐 아니라 **박 토큰** `'b8'`(8번째 박)도 받는다.
+
+## 13. 선언형 속성 — 단순한 타이밍은 HTML에
+
+`Motion.compose`의 콜백이 돌기 전에 런타임이 `data-*` 속성을 읽어 같은 타임라인에 올린다. 연출(카메라·전환·변신)은 JS로, 등장·퇴장·카운트 같은 반복 작업은 속성으로 쓰면 코드가 짧고 실수가 줄어든다.
+
+```html
+<p class="mo-label" data-reveal="fade 0.1">NOTE · 01</p>
+<h1 class="mo-h1" data-reveal="rise 0.25 pre=0.4 sfx">질문 한 줄이 먼저</h1>
+<span data-highlight="1.4">좋은 질문</span>
+<b data-count="62>96 1.0 dur=2.4 ease=power3.inOut pulse sfx">62</b><small>%</small>
+<span data-type="3.8 dur=1.3 sfx">3학년 과학 활동지 만들어줘</span>     <!-- 요소 안의 글을 한글 자모로 타이핑 -->
+<section class="mo-scene" data-show="0-4.2">…</section>                <!-- 보이는 시간 창(여러 개: "0-2, 5-8") -->
+<div data-exit="fade 4.0">…</div>  <svg data-draw="0.5">…</svg>  <button data-press="3.1 sfx">…</button>  <i data-pulse="b12"></i>
+<div class="chip" data-float="y=0.8u period=5"></div>  <i data-spin="period=8"></i>
+<i data-sfx="whoosh 1.2 vol=0.6, impact b8"></i>                      <!-- 효과음만 따로 -->
+```
+
+- 값의 순서: `종류 시각 옵션…`. 옵션은 `키=값`(`dur`=duration, `vol`=volume) 또는 플래그(`tight`, `pulse`, `sfx`, `loop`). 길이 값에 `u`를 붙이면 1u 단위(`y=0.8u`).
+- 같은 요소에 속성과 JS(`M.reveal`)를 둘 다 걸지 않는다(이중 트윈).
+- 시각 토큰: `1.2`, `1.2s`, `b8`(음악에서 잰 8번째 박. 음악이 없으면 무대의 `data-bpm`, 기본 120), 타임라인 라벨 이름.
+
+## 14. 템플릿 변수 — 한 컴포지션, 여러 영상
+
+```html
+<h1 data-var="title" data-label="제목">AI에게 일을 맡기는 교사</h1>     <!-- --vars "title=…" 로 바뀐다. \n 은 줄바꿈 -->
+<img data-var="photo" src="./default.jpg">                              <!-- 이미지·영상은 src가 바뀐다 -->
+```
+```js
+const n = M.var('count', 120, { label: '줄어들기 전(분)', type: 'number' });   // JS 쪽 값도 변수로
+```
+- 내장 변수: `accent`(포인트 색), `theme`. `--vars "accent=mint"`만으로 색이 바뀐다.
+- `motion vars 파일`이 변수 목록을, 미리보기의 **vars** 버튼이 편집 패널을 보여 준다.
+- `motion batch 파일 --data rows.csv --name "{이름}"` — 표의 열 이름 = 변수 이름, 행마다 한 편.
+
+## 15. 소리 — 음악·목소리·효과음
+
+컴포지션은 소리를 **계획**만 하고, 렌더러가 믹스해 영상에 넣는다(음악은 목소리 아래로 자동으로 줄고, 전체는 −14 LUFS로 맞춰진다).
+
+```html
+<audio src="bgm.mp3" data-start="0" data-volume="0.8" data-fade-in="0.2" data-fade-out="1.5"></audio>
+<audio src="voice.wav" data-start="0.4" data-role="voice"></audio>
+```
+```js
+const music = M.audio('bgm.mp3');          // 마크업의 그 트랙(같은 파일)을 돌려준다. 옵션을 주면 새 트랙: M.audio('a.mp3', { at: 2, from: 12, volume: 0.6, loop: true })
+music.bpm; music.beats; music.downbeats; music.onsets;   // CLI가 파일을 분석해 둔 값(초)
+music.level(t); music.low(t); music.high(t);             // 0–1 세기(전체·저음·고음) — 화면이 음악에 반응
+music.beat(16);                                          // 16번째 박의 시각
+music.pulse(t, 0.12);                                    // 박 위에서 1, 다음 박 전까지 0으로 — 박자 섬광·펄스
+
+const b = M.grid();                        // 음악의 실제 박(없으면 data-bpm) → b(n) = n번째 박
+M.reveal('#w1', { type: 'slam', sfx: true }, b(4));
+M.onFrame((t) => { M.$('#glow').style.opacity = (0.3 + 0.7 * music.low(t)).toFixed(3); });
+
+M.sfx('whoosh', 1.2);                      // 효과음 하나. { volume, pitch, pan }
+M.reveal('#chip', { type: 'pop', sfx: true }, 2.0);      // 도우미에 sfx: true → 어울리는 효과음이 자동으로
+M.type('#q', '활동지 만들어줘', { duration: 1.2, sfx: true }, 3.0);   // 자판 소리
+M.count('#n', { from: 0, to: 96, sfx: true }, 4.0);     // 숫자가 바뀔 때 틱
+cur.click({ sfx: true }, 5.1);  M.transition('whip', '#a', '#b', { at: 6, sfx: true });
+```
+
+내장 효과음(코드로 합성, 파일·라이선스 불필요): `click tap tick key pop swish whoosh whip swipe riser swell impact thud drop ding success error shutter glitch sparkle`. 폴더 안의 소리 파일 이름(`'boom.wav'`)도 된다.
+
+| 도우미 + `sfx: true` | 들리는 소리 |
+|---|---|
+| reveal pop · slam · drop · wipe/grow · 나머지 | pop · impact · thud · swipe · swish |
+| exit · press · tap · cursor.click · highlight | swish · click · tap · click · swipe |
+| type · count | key(자판, 음높이 조금씩 다르게) · tick(최대 30번) |
+| transition push/slide/zoom/warp · whip · wipe/clock/blinds · flash · leak · glitch · iris/flip/blur | whoosh · whip · swipe · impact · swell · glitch · swish |
+
+- 소리 디자인 원칙은 `references/sound.md`. 큰 움직임 4–8곳에만, 작은 등장은 조용히.
+- 렌더 옵션: `--no-audio`(소리 없이) · `--loudness off`(음량 맞추기 끄기) · `--audio bgm.mp3`(배경 음악 하나 추가).
+- `motion audio 노래.mp3` — 렌더 전에 BPM·박·마디를 확인. 분석은 CLI가 자동으로 해서 `_motion/audio/`에 둔다.
+
+## 16. 자막 — 말에 맞춰 단어가 켜진다
+
+```html
+<div id="cap"></div>                                   <!-- 위치는 .mo-captions 기본값(아래 안전영역 위). 바꾸려면 CSS로 -->
+<div data-captions="voice.captions.json karaoke"></div>
+```
+```js
+M.captions('#cap', 'voice.srt', { style: 'karaoke' });              // 파일(.srt · .vtt · .captions.json)
+M.captions('#cap', [{ start: 0.4, end: 2.6, text: '두 시간이 십 분으로' }], { style: 'pop' });
+```
+| style | 모양 |
+|---|---|
+| `karaoke`(기본) | 한 줄이 통째로 뜨고, 말한 단어는 밝게, 지금 단어는 포인트 색 |
+| `pop` | 단어가 말하는 순간 튕기며 나타난다(쇼츠 자막) |
+| `box` | 지금 단어 뒤에 포인트 색 상자 |
+| `line` | 한 줄씩만, 단어 강조 없이(정보 영상) |
+
+옵션: `offset`(전체를 미는 초), `linger`(줄이 끝난 뒤 남는 초, 기본 0.3). 크기는 `.mo-captions { --cap: 5.6 }`(u 단위).
+자막 파일 만들기: `motion captions plan 대본.txt`(말 속도로 계획) · `motion captions align 대본.txt 녹음.wav`(녹음의 쉬는 구간에 정렬 → 단어 시각까지). 자세히는 `references/captions.md`.
+
+## 17. 스프링 — 물리로 움직이는 감속
+
+```js
+tl.to('#card', { y: 0, ...M.spring('snappy') }, 1.2);             // { ease, duration } — 길이는 스프링이 멈출 때까지
+tl.to('#chip', { scale: 1, ...M.spring({ stiffness: 260, damping: 15 }) }, 2.0);
+const L = M.springValue([[0, 40], [1.4, 220], [2.6, 420]], 'snappy');   // 목표가 바뀔 때마다 그 자리에서 새 스프링(중간에 바뀌어도 매끄럽다)
+const R = M.springValue([[0, 160], [1.4, 340], [2.6, 520]], 'gentle');  // 앞뒤 가장자리를 다른 스프링으로 → 늘어났다 따라붙는 '액체' 인디케이터
+M.onFrame((t) => { const a = L(t), b = R(t); ind.style.left = a + 'px'; ind.style.width = (b - a) + 'px'; });
+M.springs('#dot', { x: [[0, 0], [b(4), 300]], scale: [[0, 1], [b(4), 1.2], [b(5), 1]] }, 'bouncy');
+```
+프리셋: `gentle`(느긋) `smooth`(기본) `snappy`(UI) `bouncy`(작은 것만) `heavy`(큰 물체) `stiff`(거의 튕김 없이). 큰 글자·카메라에 `bouncy`를 쓰지 않는다.
+
+## 18. 도형과 모핑
+
+```js
+M.$('#mark').setAttribute('d', M.shape('circle'));                // <svg viewBox="0 0 100 100"><path id="mark"/></svg>
+M.morphPath('#mark', [M.shape('star', { n: 5 }), M.shape('heart'), '#logoPath'], { duration: 0.8, hold: 0.4 }, 2.0);
+```
+- `M.shape(종류, { w, h, r, n, inner, seed, wobble })` → path 데이터(기본 100×100 상자): `circle rect squircle polygon star heart blob drop arrow plus check`.
+- `M.morphPath(path, 모양 | [모양…] | '#다른path', { duration, hold, ease, type }, at)` — 같은 윤곽선이 다른 모양이 된다. 점에서 로고로, 버튼에서 체크로.
+- GSAP 플러그인이 모두 들어 있다: `MorphSVGPlugin` `DrawSVGPlugin` `MotionPathPlugin` `CustomEase` `CustomWiggle` `CustomBounce` `Physics2DPlugin` `ScrambleTextPlugin` `TextPlugin` `SplitText` `Flip`. 예: `CustomEase.create('hop', 'M0,0 C0.3,1.4 0.5,1 1,1')`, `tl.to(el, { motionPath: { path: '#p', align: '#p' } })`.
+
+## 19. 전환 8종 추가
+
+1부의 `M.transition`에 아래가 더해졌다(16종). 모두 되감기 안전.
+
+| type | 모양 | 어울리는 곳 |
+|---|---|---|
+| `slide` | 새 장면이 옆에서 덮고 앞 장면은 30%만 밀리며 어두워진다 | 단계 넘기기, 카드 넘기기 |
+| `blur` | 초점이 풀렸다 다시 맞으며 바뀐다 | 감성·회상 |
+| `flash` | 흰 섬광(또는 `color`)을 통과 | 박자 타격, 결과 공개 |
+| `leak` | 따뜻한 빛샘이 화면을 쓸고 지나간다 | 필름 느낌, 장 바꿈 |
+| `clock` | 시계 방향으로 쓸며 열린다(`x`,`y` 중심) | 시간·순서 |
+| `blinds` | 줄무늬 블라인드(`count`, `angle`) | 리듬감 있는 정보 전환 |
+| `warp` | 화면이 일렁이며 녹아 바뀐다(`amount`) | 꿈·전환 강조 |
+| `glitch` | RGB가 갈라지고 줄이 튄다(0.45초) | 테크·디지털·오류 |
+
+## 20. 효과와 블록
+
+```js
+M.leak({ duration: 1.3, from: 'right' }, 4.0);        // 장면은 그대로, 빛샘만
+M.flash({ peak: 0.7 }, b(8));                         // 섬광 한 프레임
+M.rays({ count: 18, alpha: 0.06, period: 40 });       // 천천히 도는 빛살(축하·공개 뒤 배경)
+M.callout('#chart', { text: '62%<small>참여</small>', side: 'right', sfx: true }, 5.6);   // 점·선·라벨 주석
+M.lowerThird({ name: '김하늘', title: '수석교사 · ○○초등학교', out: 7.5, sfx: true }, 1.0);  // 이름표(HUD)
+```
+
+## 21. 차트
+
+```html
+<div id="chart" style="position:absolute;left:8%;right:8%;top:30%;height:40%"></div>
+```
+```js
+M.chart('#chart', { type: 'column', data: [42, 58, 50, 94, 71], labels: ['월', '화', '수', '목', '금'], unit: '' }, 1.2);
+M.chart('#ring', { type: 'donut', data: [62, 24, 14], labels: ['참여', '관망', '미참여'] }, 2.0);   // 가운데 = 강조 항목의 비율(%)
+M.chart('#trend', { type: 'area', data: [12, 18, 15, 26, 31, 29, 44], labels: ['1월', …], highlight: 6 }, 2.4);
+```
+- `type`: `column`(세로 막대) `bar`(가로 막대) `line` `area` `donut` `pie`.
+- 옵션: `highlight`(포인트 색 항목, 기본 가장 큰 값) `max` `unit` `decimals` `duration` `stagger` `values: false`(숫자 숨김) `center`·`caption`(도넛 가운데).
+- 빈 상자에 그린다. 상자 크기를 CSS로 먼저 정한다. 강조는 하나, 나머지는 회색.
+
+## 22. 3D와 Lottie
+
+```html
+<canvas id="three" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+```
+```js
+M.three('#three', (THREE, { scene, camera }) => {
+  const mesh = new THREE.Mesh(new THREE.TorusKnotGeometry(1.2, 0.36, 220, 32), new THREE.MeshStandardMaterial({ color: '#2EF0B0', metalness: 0.6, roughness: 0.25 }));
+  scene.add(mesh, new THREE.AmbientLight('#ffffff', 0.4)); const key = new THREE.DirectionalLight('#ffffff', 2.2); key.position.set(3, 4, 5); scene.add(key);
+  camera.position.set(0, 0, 7);
+  return (t) => { mesh.rotation.set(t * 0.4, t * 0.7, 0); camera.position.z = 7 - Math.min(1, t / 3) * 1.5; };   // 시간 t에 대한 순수 함수로
+});
+M.lottie('#icon', { src: 'check.json', speed: 1 }, 2.0);           // 또는 <div data-lottie="check.json 2.0 loop"></div>
+M.adapter({ ready: promise, seek: (t) => { /* 다른 런타임을 t에 맞춰 그린다 */ } });
+```
+- `M.three` — 실제 WebGL 3D(three.js). 반환한 함수가 매 프레임 `t`로 장면을 맞추고 렌더된다. `Math.random`·시계 대신 `M.rng(seed)`와 `t`만 쓴다. 4K·선명 보정에서도 해상도가 자동으로 맞는다.
+- `M.lottie` — After Effects/LottieFiles의 JSON 애니메이션을 프레임 단위로 정확히 재생. 파일은 컴포지션 폴더에.
+- `M.wait(promise)` — 비동기로 준비되는 것(모델 로딩 등)이 끝날 때까지 첫 프레임을 기다린다.
+
+## 23. 그 밖의 추가
+
+- `cur.drag(대상, { duration }, at)` — 누른 채 끌고 가서 놓기(슬라이더·드래그 앤 드롭).
+- `M.text(대상, [[t, '문구'] …], { blur: true })` — 바뀌는 순간 짧게 흐려졌다 맺힌다.
+- `<div id="stage" … data-loop>` — 반복(GIF·배경) 영상. `check`가 마지막 프레임이 첫 프레임과 같은지 본다.
+- 화면 `cinema`(1920×804, 2.39:1) 추가.
+
+## 24. 세부 옵션
+
+- `M.shape(종류, { w, h, box: 100 })` — `box`는 w×h 도형을 100×100(또는 `[w, h]`) 상자 가운데에 놓는다. 원이 알약으로 바뀌어도 제자리. `{ x, y }`는 그만큼 옮긴다.
+- `M.morphPath` — 닫힌 윤곽끼리는 기본으로 같은 개수의 점으로 고르게 나눠, 같은 방향·가장 덜 움직이는 시작점으로 맞춘 뒤 섞는다. 중간 모양이 찌그러지지 않는다. 열린 선(화살표·체크)이나 여러 조각은 MorphSVG로 넘어간다. `type: 'linear' | 'rotational'`이면 MorphSVG를 직접 쓴다.
+- `M.springValue([[0, 0], [0.5, 100, 'bouncy'], [1.5, 0, { stiffness: 300, damping: 40 }]], 'smooth')` — 키의 세 번째 값은 그 키로 가는 스프링.
+- `M.follow`를 한 요소에 여러 번 — 차례로 이어진다(나중에 시작한 경로가 그때부터 요소를 맡는다).
+- `M.exit` — fade·drop은 지금 자리에서 상대적으로 움직인다(이미 위로 옮긴 요소가 제자리로 튀지 않는다). `y: 0`이면 제자리에서 사라진다.
+- `M.chart` — 세로 막대의 기준선은 막대 바로 아래에서 왼쪽부터 그려진다. 항목이 적어도 막대 폭은 16u까지. 도넛 가운데 `center`: 기본은 강조 항목의 %(`unit`과 무관) · `'value'` · `'total'` · 숫자 · `false`(없음). `sfx: true` — 자랄 때 swish, 강조 값이 닿을 때 pop.
+- `M.callout(대상, { text, parent })` — 기기 화면 속 요소에 주석을 달 때 `parent`로 잘리지 않는 조상(예: `.mo-laptop-lid-face`)을 준다.
+- `M.three` — 캔버스가 보이지 않는 동안은 장면을 맞추지도 그리지도 않는다(그래서 pose는 t의 순수 함수여야 한다). 3D 물체가 화면에서 움직이는 거리를 재서 모션 블러 양을 정한다.
+- `cam.float` — `data-loop` 영상에서는 반복 길이에 딱 맞는 주기로 바뀌어 이음매가 생기지 않는다. `cam.drift`는 여전히 반복 영상에 쓰지 않는다.
+- `<img data-optional>` — 파일이 없어도 오류가 아니고 그냥 숨는다(로고 자리 등). 엔진은 이미지의 `onload`·`onerror`를 덮어쓰지 않는다.
+- `--vars "note="` — 빈 값으로 그 줄을 지운다. `batch`의 빈 칸은 기본값을 쓴다.
+- 기본값에 `<br>`이 있는 변수는 `motion vars`에 `\n`으로 보이고, 값에 `\n`을 쓰면 줄바꿈이 된다.
+- 템플릿이 스스로 기본값을 가질 수 있다: `<meta name="motion-template" content='{"format":"wide","duration":14,"files":["a.json"]}'>`(`templates/index.json`이 우선).
+- `motion new --brand brand.json` — 이름·한 줄 소개(화면용으로 줄임)·주소·로고가 `data-var="name|tagline|url|logo"` 기본값에 들어간다.
+- `<div id="stage" … data-overlay>` — 편집 프로그램에 얹는 오버레이(이름표·자막바). 점수에서 훅·리듬·움직임·사운드를 빼고 나머지로 환산한다. 렌더는 `--format mov --alpha`.
+
+## 25. 함정
+
+- 처음 값이 `calc(…)`인 CSS 변수를 GSAP으로 트윈하면 시작값을 0으로 기록한다 → 시작값을 숫자로(`fromTo`) 준다.
+- `tl.set(el, { attr: { class } })`는 뒤로 찾아갈 때 되돌려지지 않는다 → 클래스는 `M.onFrame((t) => el.classList.toggle('on', t >= 3))`처럼 t로 정한다.
+- 단위 없는 `borderRadius` 트윈은 CSS의 `%` 단위를 물려받는다 → `'12px'`처럼 단위를 적는다.
+- `M.transition`은 두 장면에 z-index를 준다 → 같은 `.mo-world` 안의 다른 요소(장면 밖 주인공 등)는 자기 z-index를 가져야 가려지지 않는다.
+- HUD에 `data-theme`을 주면 글자 색만 바뀐다(배경을 칠하지 않는다).

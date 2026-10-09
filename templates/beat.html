@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 박자 키네틱 타이포 — 한 마디(4박)에 한 단어. 박마다 무언가 바뀌고, 마디 2·4는 포인트 색 면(pop)으로 뒤집힌다.
+     로그라인  흑백으로 세던 박이 포인트 색으로 터지고, 단어가 쌓이고·맞붙고·다가온 끝에 네 개의 박 램프가 제목 위의 줄 하나로 붙는다
+     비트(120BPM)  0–2 "준비" 카운트인 → 2 "시작" 반전·쾅·메아리 → 3.75 "함께" 양쪽에서 맞붙음·띠 → 6 "지금" 반전·섬광·스텝 줌 → 8 엔드카드(끝 1.2초 정지)
+     문구는 data-var(motion render --vars "line1=…&title=…"), 박은 M.grid() — 음악을 넣으면 노래에서 잰 박을 따라간다 */
+  .word { position: absolute; left: var(--safe-x); bottom: 49.5%; margin: 0; font-weight: 880; line-height: 0.92; letter-spacing: -0.05em; white-space: nowrap; transform-origin: 0% 100%; }
+  .echo { visibility: hidden; color: transparent; -webkit-text-stroke: calc(var(--u) * 0.22) var(--fg); }
+  .half { display: inline-block; white-space: pre; }
+  #w3top { color: var(--on-accent); }
+
+  /* 포인트 색 면 — 평평하지 않게 단어 쪽이 살짝 밝다. 흔들려도 가장자리가 드러나지 않게 넉넉히 */
+  .field { position: absolute; inset: -14%; background: radial-gradient(ellipse 72% 52% at 38% 46%, color-mix(in oklab, var(--accent) 84%, #fff) 0%, var(--accent) 58%, color-mix(in oklab, var(--accent) 93%, #000) 100%); }
+  #band { position: absolute; left: -2%; right: -2%; background: var(--accent); }
+
+  /* 박 램프 — 마디 안에서 박마다 하나씩 켜진다. 모든 장면의 같은 자리(단어 위)에 남아 있다가 엔드카드에서 포인트 색 줄 하나로 붙는다 */
+  #lamps { position: absolute; left: var(--safe-x); top: 20%; display: flex; z-index: 30; }
+  #lamps i { display: block; height: calc(var(--u) * 1.15); background: var(--fg-4); }
+  #lamps i.on { background: var(--fg); }
+  #lamps.end { border-radius: 99px; overflow: hidden; }
+  #lamps.end i { background: var(--accent); }
+
+  /* 엔드카드 — 제목의 마지막 줄이 단어들과 같은 밑선(50.5%)에 선다 */
+  #title { position: absolute; left: var(--safe-x); right: var(--safe-x); bottom: 49.5%; margin: 0; font-size: calc(var(--u) * 21); font-weight: 840; line-height: 1.02; letter-spacing: -0.05em; }
+  #label { position: absolute; left: var(--safe-x); right: var(--safe-x); top: calc(50.5% + var(--u) * 3.4); margin: 0; font-size: calc(var(--u) * 3.6); font-weight: 640; letter-spacing: -0.02em; color: var(--fg-2); }
+
+  /* 모서리 — 장면이 pop이면 HUD도 함께 뒤집힌다(data-theme가 칠하는 배경은 끈다) */
+  #stage .mo-hud[data-theme], #stage #lamps[data-theme] { background: none; }
+  #kicker { max-width: 62%; font-size: calc(var(--u) * 2.4); font-weight: 650; letter-spacing: -0.01em; color: var(--fg-2); }
+  #bpm { font-size: calc(var(--u) * 2.1); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}" data-bpm="120"{{PLATFORM}}>
+  <!-- 음악: 파일을 이 폴더에 두고 아래 주석을 풀면 단어·컷·램프가 노래에서 잰 박을 따라간다(BPM이 달라도 된다).
+       엔드카드는 2초 이상 남는 가장 늦은 박에 시작한다 — 느린 곡이면 data-duration을 늘린다. 노래의 앞부분을 건너뛰려면 data-from="초".
+  <audio src="song.mp3" data-start="0" data-fade-out="1.2"></audio>
+  -->
+  <div class="mo-bg"><div class="mo-stagelight"></div></div>
+
+  <div class="mo-world">
+    <section class="mo-scene" id="s1">
+      <h1 class="word" id="w1" data-var="line1" data-label="1마디 단어(카운트인)">준비</h1>
+    </section>
+    <section class="mo-scene" id="s2" data-theme="pop">
+      <div class="field"></div>
+      <h1 class="word echo" id="e2b" data-deco aria-hidden="true"></h1>
+      <h1 class="word echo" id="e2a" data-deco aria-hidden="true"></h1>
+      <h1 class="word" id="w2" data-var="line2" data-label="2마디 단어(첫 반전)">시작</h1>
+    </section>
+    <section class="mo-scene" id="s3">
+      <i id="band"></i>
+      <h1 class="word" id="w3" data-var="line3" data-label="3마디 단어(양쪽에서 맞붙음)">함께</h1>
+      <h1 class="word" id="w3top" data-deco aria-hidden="true"></h1>
+    </section>
+    <section class="mo-scene" id="s4" data-theme="pop">
+      <div class="field"></div>
+      <h1 class="word" id="w4" data-var="line4" data-label="4마디 단어(절정)">지금</h1>
+    </section>
+    <section class="mo-scene" id="s5">
+      <h1 id="title" data-var="title" data-label="엔드카드 제목">우리들의 축제</h1>
+      <p id="label" data-var="label" data-label="엔드카드 라벨">곧 만나요</p>
+    </section>
+    <div id="lamps"><i></i><i></i><i></i><i></i></div>
+  </div>
+
+  <div class="mo-hud"><span class="tl" id="kicker" data-var="kicker" data-label="모서리 라벨">2026 가을</span><span class="mo-label tr" id="bpm">120 BPM</span></div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, D } = M;
+  const b = M.grid();                                   // 박 격자 — 음악이 있으면 노래에서 잰 박, 없으면 data-bpm. b(7.5)는 반박
+  const music = M.music();
+  let N = 16; while (N > 4 && b(N) > D - 2) N--;        // 엔드카드가 시작되는 박 = 2초 이상 남는 가장 늦은 박(느린 곡·짧은 길이에서는 마지막 마디가 짧아진다)
+  const E = Math.min(b(N), D - 2), on = (n) => n < N && b(n) < E - 1e-6;   // on(n): n번째 박이 엔드카드보다 먼저 오는가(전주가 아주 긴 곡도 길이를 넘지 않게)
+  const X0 = M.rect('#w1').x, MEASURE = W - X0 * 2;     // 좌우 여백 사이의 폭
+  const sfx = (name, vol, at) => M.sfx(name, { volume: music ? vol * 0.6 : vol }, at);   // 음악이 있으면 효과음은 낮게, 타격만
+
+  // ── 글자: 단어는 여백 사이를 꽉 채우되 너무 커지지 않게(문구를 바꿔도 같은 폭) ──
+  const fit = (el, width, maxU) => { M.fitText(el, width); if (parseFloat(el.style.fontSize) > maxU * u) el.style.fontSize = maxU * u + 'px'; };
+  const halves = (el) => {                              // "함께" → [함][께] — 어떤 문구든 글자 수의 절반에서 나눈다
+    const ch = Array.from(el.textContent.trim()), k = Math.ceil(ch.length / 2);
+    el.textContent = ''; return [ch.slice(0, k), ch.slice(k)].map((p) => { const s = M.el('<span class="half"></span>', el); s.textContent = p.join(''); return s; });
+  };
+  fit(M.$('#w1'), MEASURE, 50); fit(M.$('#w2'), MEASURE, 50); fit(M.$('#w4'), MEASURE * 0.68, 40);
+  ['#e2a', '#e2b'].forEach((s) => { M.$(s).textContent = M.$('#w2').textContent; M.$(s).style.fontSize = M.$('#w2').style.fontSize; });
+  M.$('#w3top').textContent = M.$('#w3').textContent;
+  const [ha, hb] = halves(M.$('#w3')); halves(M.$('#w3top'));
+  fit(M.$('#w3'), MEASURE, 50); M.$('#w3top').style.fontSize = M.$('#w3').style.fontSize;
+  // 엔드카드 제목: 가장 긴 줄이 여백 사이를 채우는 가장 큰 크기 — 단, 줄이 늘어도 모서리 라벨 아래(높이 TITLE_H)를 넘지 않게
+  const title = M.$('#title'), px = M.stage.getBoundingClientRect().width / W, TITLE_H = M.rect('#title').y + M.rect('#title').h - M.rect('.mo-hud').y - u * 13;
+  const lineW = () => { const r = document.createRange(); r.selectNodeContents(title); return Math.max(...Array.from(r.getClientRects(), (q) => q.width)) / px; };
+  for (let f = 26; f >= 8; f -= 0.25) { title.style.fontSize = u * f + 'px'; if (lineW() <= MEASURE * 0.97 && title.offsetHeight <= TITLE_H) break; }
+  M.$('#bpm').textContent = Math.round(60 / b.len) + ' BPM';
+
+  // ── 무대 ──
+  M.grain();
+  cam.drift({ zoom: 1.035 });
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, pre: 0.4, stagger: 0.08 }, 0);
+  const pops = [];                                      // 포인트 색 면이 보이는 구간 — HUD·램프·비네트가 따라 뒤집힌다
+
+  // ── 마디 1 「준비」: 흑백 카운트인. 첫 프레임부터 읽히고, 카메라가 박마다 한 단계씩 정면으로 선다 ──
+  const end1 = on(4) ? b(4) : E;
+  M.scene('#s1', 0, end1);
+  cam.set({ rx: 9, ry: -12, zoom: 1.14 });
+  [0, 1, 2].forEach((k) => { if (on(k)) cam.to({ rx: 6 - k * 3, ry: -8 + k * 4, zoom: 1.095 - k * 0.0475, duration: 0.34, ease: 'mo.snap' }, b(k)); });
+  tl.fromTo('#w1', { y: u * 2.4 }, { y: 0, duration: 1.1, ease: 'mo.out' }, 0);
+  if (on(3)) cam.to({ zoom: 0.97, duration: end1 - b(3), ease: 'power2.in' }, b(3));   // 넷째 박은 숨을 들이쉰다(반전 직전의 쉼)
+  if (!music && on(4)) sfx('riser', 0.7, Math.max(0, b(4) - 1.7));                    // 첫 반전까지 차오른다
+
+  // ── 마디 2 「시작」: 첫 반전. 쾅 → 둘째·셋째 박에 외곽선 메아리가 아래로 쌓이고, 넷째 박에 접히며 움츠린다 ──
+  if (on(4)) {
+    const t = b(4), out = on(8) ? b(7.5) : E, fold = on(7) ? b(7) : out;
+    M.transition('cut', '#s1', '#s2', { at: t }); M.scene('#s2', t, out); pops.push([t, out]); cam.set({ zoom: 1 }, t);
+    M.reveal('#w2', { type: 'slam', scale: 1.42, duration: 0.4 }, t);
+    tl.to('#w2', { scale: 1.035, duration: Math.max(0.05, fold - t - 0.4), ease: 'none' }, t + 0.4);
+    cam.punch({ scale: 1.06 }, t); cam.shake({ amp: u * 1.1, duration: 0.32 }, t); sfx('impact', 1, t);
+    const pitch = M.$('#w2').offsetHeight * 0.95, echoes = [];
+    [['#e2a', 5, 0.7], ['#e2b', 6, 0.36]].forEach(([id, n, a], i) => {
+      if (!on(n)) return;
+      M.scene(id, b(n), out); gsap.set(id, { opacity: a }); echoes.push(id);
+      tl.fromTo(id, { y: pitch * i }, { y: pitch * (i + 1), duration: 0.26, ease: 'mo.snap' }, b(n));
+      cam.punch({ scale: 1.025 }, b(n));
+    });
+    if (on(7)) {
+      tl.to('#w2', { scale: 0.93, duration: out - fold, ease: 'power2.in' }, fold);
+      if (echoes.length) tl.to(echoes, { y: 0, duration: out - fold, ease: 'power2.in' }, fold);
+    }
+  }
+
+  // ── 마디 3 「함께」: 반박 앞에서 컷, 두 쪽이 양쪽에서 날아와 박 정각에 맞붙는다 → 셋째 박에 포인트 띠가 화면을 가로지른다 ──
+  let bandAt = null;
+  if (on(8)) {
+    const t = b(7.5), hit = b(8), out = on(12) ? b(12) : E;
+    M.transition('cut', '#s2', '#s3', { at: t }); M.scene('#s3', t, out);
+    tl.fromTo(ha, { x: -W * 0.42 }, { x: 0, duration: hit - t, ease: 'power2.in' }, t);   // 컷 직후부터 가장자리에 보인다
+    tl.fromTo(hb, { x: W * 0.42 }, { x: 0, duration: hit - t, ease: 'power2.in' }, t);
+    tl.fromTo('#w3', { scale: 1.06 }, { scale: 1, duration: 0.45, ease: 'mo.out', immediateRender: false }, hit);
+    cam.punch({ scale: 1.045 }, hit); cam.shake({ amp: u * 0.6, duration: 0.24 }, hit);
+    cam.to({ zoom: 1.04, duration: out - hit, ease: 'sine.in' }, hit);                 // 맞붙은 뒤에는 천천히 다가간다(다음 컷에서 원래대로)
+    if (!music) sfx('whoosh', 0.9, hit - 0.34);                                        // 소리의 정점(0.34초)이 맞붙는 순간에
+    if (on(10)) { bandAt = b(10); cam.punch({ scale: 1.02 }, bandAt); }
+    const r = M.rect('#w3'), F = parseFloat(M.$('#w3').style.fontSize);                // 한글 글리프는 줄 상자보다 위가 0.015em, 아래가 0.01em 안쪽 → 위아래 여백을 같게
+    Object.assign(M.$('#band').style, { top: r.y - F * 0.055 + 'px', height: r.h + F * 0.115 + 'px' });
+  }
+
+  // ── 마디 4 「지금」: 둘째 반전 + 섬광(영상에 한 번). 박마다 한 걸음씩 다가온다 ──
+  if (on(12)) {
+    const t = b(12);
+    M.transition('cut', '#s3', '#s4', { at: t }); M.scene('#s4', t, E); pops.push([t, E]); cam.set({ zoom: 1 }, t);
+    cam.to({ zoom: 1.03, duration: E - t, ease: 'none' }, t);
+    tl.fromTo('#w4', { scale: 0.62 }, { scale: 1, duration: 0.3, ease: 'mo.snap' }, t);
+    M.flash({ peak: 0.85, duration: 0.42 }, t);
+    cam.punch({ scale: 1.07 }, t); cam.shake({ amp: u * 1.3, duration: 0.34 }, t); sfx('impact', 1, t);
+    [1, 2, 3].forEach((k) => { if (on(12 + k)) { tl.to('#w4', { scale: 1 + k * 0.1, duration: 0.2, ease: 'mo.snap' }, b(12 + k)); cam.punch({ scale: 1.02 }, b(12 + k)); } });
+  }
+
+  // ── 엔드카드: 검정으로 돌아와 제목이 솟고, 네 램프가 줄 하나로 붙으며 포인트 색이 된다. 끝 1.2초는 정지 ──
+  M.transition('cut', on(12) ? '#s4' : on(8) ? '#s3' : on(4) ? '#s2' : '#s1', '#s5', { at: E }); cam.set({ zoom: 1 }, E);
+  M.reveal('#title', { type: 'rise', duration: 0.72, stagger: 0.07, pre: 0.2 }, E);   // 컷 프레임에 이미 솟는 중 — 쿵 소리와 글자가 같은 박에
+  M.reveal('#label', { type: 'rise', duration: 0.6 }, E + 0.2);
+  cam.punch({ scale: 1.03 }, E); sfx('drop', 0.9, E);
+
+  // ── 매 프레임(시간의 순수 함수): 박 램프 · 띠 · HUD와 비네트의 테마 ──
+  const box = M.$('#lamps'), lamps = M.$$('#lamps i'), hud = M.$('.mo-hud'), vig = M.$('.mo-vignette');
+  const band = M.$('#band'), top = M.$('#w3top'), topX = M.rect('#w3top').x, topW = M.rect('#w3top').w;
+  const fuse = M.ease('mo.inOut'), wipe = M.ease('power3.out');
+  const L0 = { gap: u * 1.3, w: u * 5.2, r: u * 0.6 }, ruleW = (L0.w * 4 + L0.gap * 3) / 4;   // 붙어도 줄의 길이는 그대로
+  const top0 = M.rect('#w1').y - u * 7.4, top1 = M.rect('#title').y - u * 6;              // 단어의 윗변 위 → 엔드카드에서는 제목 위로
+  M.onFrame((t) => {
+    let k = -1; while (k + 1 < N && t >= b(k + 1) - 1e-6) k++;
+    const end = t >= E - 1e-6, pop = pops.some(([a, z]) => t >= a - 1e-6 && t < z - 1e-6);
+    const f = fuse(M.clamp((t - E - 0.06) / 0.62, 0, 1));
+    box.classList.toggle('end', end);
+    box.style.top = M.lerp(top0, top1, f).toFixed(2) + 'px';
+    box.style.gap = M.lerp(L0.gap, 0, f).toFixed(2) + 'px';
+    lamps.forEach((el, i) => {
+      const lit = end || (k >= 0 && i <= k % 4), age = !end && k >= 0 && i === k % 4 ? t - b(k) : 9;
+      el.classList.toggle('on', lit);
+      el.style.width = M.lerp(L0.w, ruleW, f).toFixed(2) + 'px';
+      el.style.borderRadius = M.lerp(L0.r, 0, f).toFixed(2) + 'px';
+      el.style.scale = (1 + 0.45 * Math.exp(-age / 0.07)).toFixed(3);
+    });
+    // 띠: 화면 끝에서 끝까지 쓸고, 띠가 지난 자리의 글자만 --on-accent로(띠의 가장자리와 같은 x)
+    const p = bandAt == null ? 0 : wipe(M.clamp((t - bandAt) / 0.3, 0, 1)), edge = -W * 0.02 + p * W * 1.04;
+    band.style.clipPath = `inset(0 ${((1 - p) * 100).toFixed(3)}% 0 0)`;
+    top.style.clipPath = `inset(-20% ${M.clamp(topX + topW - edge, 0, topW * 1.2).toFixed(1)}px -20% -20%)`;
+    if (pop !== (hud.dataset.theme === 'pop')) { if (pop) hud.dataset.theme = box.dataset.theme = 'pop'; else { delete hud.dataset.theme; delete box.dataset.theme; } }
+    vig.style.opacity = pop ? '0.35' : '1';
+  });
+});
+</script>
+</body>
+</html>

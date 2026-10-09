@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="motion-template" content='{"about": "질문 → 막대(평균과 비교) → 그 막대가 휘어 도넛 조각으로 → 큰 숫자 → 한 줄 결론. 발표·유튜브용 데이터 스토리", "format": "wide", "duration": 14}'>
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 데이터 스토리(16:9, 14초) — 질문 → 막대 → 평균과 비교 → 그 막대가 휘어 도넛의 빈 칸에 앉는다 → 큰 숫자 → 한 줄 결론.
+     수치는 --vars 로 바꾼다: values(쉼표) · labels(쉼표) · unit · key(강조할 항목 번호, 0 = 가장 큰 값).
+     문구는 data-var: title · takeaway · kicker · note. 문구 속 {top} {value} {unit} {share} {total} 은 데이터로 계산해 채운다
+     (결론의 {top}에는 마지막에 형광펜이 칠해진다). */
+
+  #stage { --mx: calc(var(--W) * 0.09); }
+
+  /* 세계에 깔린 옅은 세로 격자 — 카메라가 옆으로 갈 때 공간이 이어져 보이게 */
+  #grid { position: absolute; left: calc(var(--u) * -88); top: 0; width: calc(var(--W) * 3.4); height: var(--H); opacity: .5;
+          background-image: linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: calc(var(--u) * 8) 100%;
+          -webkit-mask-image: linear-gradient(180deg, transparent 6%, #000 32%, #000 68%, transparent 94%); mask-image: linear-gradient(180deg, transparent 6%, #000 32%, #000 68%, transparent 94%); }
+
+  /* A — 질문(왼쪽)과 막대(오른쪽) */
+  #q { position: absolute; left: var(--mx); top: calc(var(--H) * 0.355); width: calc(var(--W) * 0.36 / 0.56); margin: 0; font-size: calc(var(--u) * 11); line-height: 1.12; letter-spacing: -0.04em; transform-origin: 0 0; }   /* 머리글(0.56배)로 줄었을 때 왼쪽 단(36%) 안에 든다 */
+  #col { position: absolute; left: calc(var(--W) * 0.47); right: var(--mx); top: calc(var(--H) * 0.22); height: calc(var(--H) * 0.6); --base: 0; }
+  #col::after { bottom: calc(var(--u) * 4.05 - 1px); transform-origin: 0 50%; transform: scaleX(var(--base)); }   /* 엔진 기본값(3.6u)은 막대 밑면보다 0.45u 아래 — 밑면에 붙이고, 그어지게 */
+  .gut { position: absolute; right: 100%; margin: 0 calc(var(--u) * 1.6) 0 0; white-space: nowrap; line-height: 1.2; }
+  #col .mo-chart-track { width: 100%; max-width: calc(var(--u) * 16); align-self: center; }   /* 항목이 적어도 막대가 덩어리처럼 넓어지지 않게 */
+  #col .mo-chart-track > .mo-chart-val { position: absolute; left: -50%; right: -50%; bottom: calc(var(--v) * var(--s, 1) * 100% + var(--u) * 1.3); line-height: 1.2; }   /* 값이 막대 끝을 타고 오른다 */
+  #avg { position: absolute; left: 0; overflow: visible; }
+  #avg path { fill: none; stroke: var(--fg-3); stroke-width: 1.5; }
+  #avgLab { transform: translateY(-50%); font-size: calc(var(--u) * 2.2); font-weight: 600; color: var(--fg-2); }
+  #unitLab { bottom: 0; font-size: calc(var(--u) * 2.2); font-weight: 500; color: var(--fg-3); }
+  #avgLab b { font-family: var(--font-latin); font-weight: 650; color: var(--fg); margin-left: 0.3em; }
+
+  /* B — 도넛(왼쪽, 가운데 큰 숫자)과 해석(오른쪽) */
+  #panelB { position: absolute; left: calc(var(--W) * 1.25); top: 0; width: var(--W); height: var(--H); }
+  #donut, #big { position: absolute; left: var(--mx); top: calc(var(--H) * 0.19); width: calc(var(--H) * 0.62); height: calc(var(--H) * 0.62); }
+  #donut .mo-chart-center { display: none; }                              /* 가운데 숫자는 아래 #big(M.count)이 맡는다 */
+  #big { display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  #bigIn { display: flex; align-items: baseline; font-family: var(--font-latin); font-weight: 640; font-size: calc(var(--u) * 15); line-height: 1; letter-spacing: -0.05em; padding-left: 0.05em; }
+  #pct { font-size: 0.34em; font-weight: 600; letter-spacing: -0.02em; margin-left: 0.06em; color: var(--fg-2); }
+  #side { position: absolute; left: calc(var(--W) * 0.5); right: var(--mx); top: calc(var(--H) * 0.38); }
+  #sideLab { margin: 0; font-size: calc(var(--u) * 2.6); font-weight: 600; color: var(--fg-2); }
+  #sideLab b { font-family: var(--font-latin); font-weight: 650; color: var(--fg); }
+  #rule { height: 1px; margin: calc(var(--u) * 2.4) 0 calc(var(--u) * 2.8); background: var(--line-2); transform-origin: 0 50%; }
+  #take { margin: 0; font-size: calc(var(--u) * 6); line-height: 1.2; }
+
+  /* 세로 화면(쇼츠)으로 만들면: 질문 위 · 막대 아래, 도넛 위 · 결론 아래로 쌓는다 */
+  #stage.tall { --mx: calc(var(--W) * 0.08); }
+  .tall #q { top: calc(var(--H) * 0.2); width: calc((var(--W) - var(--mx) * 2) / 0.8); font-size: calc(var(--u) * 10); }
+  .tall #col { left: var(--mx); right: calc(var(--W) * 0.12); top: calc(var(--H) * 0.4); height: calc(var(--H) * 0.37); }
+  .tall .gut { right: auto; left: 0; margin: 0; transform: translateY(calc(-100% - var(--u) * 0.6)); }
+  .tall #unitLab { bottom: auto; top: calc(var(--u) * -9); transform: none; }
+  .tall #donut, .tall #big { left: calc(var(--W) * 0.12); top: calc(var(--H) * 0.16); width: calc(var(--W) * 0.76); height: calc(var(--W) * 0.76); }
+  .tall #side { left: var(--mx); right: var(--mx); text-align: center; }
+
+  /* 날아가며 휘는 막대(매 프레임 경로를 다시 그린다) */
+  #fly { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  #ribbon { fill: var(--accent); }
+
+  .hud { font-size: calc(var(--u) * 2.1); font-weight: 560; color: var(--fg-3); letter-spacing: -0.01em; }
+  .mo-callout-label { font-size: calc(var(--u) * 3.4); letter-spacing: -0.025em; font-weight: 700; }
+  .mo-callout-label small { letter-spacing: 0; font-family: var(--font-sans); font-size: 0.62em; font-weight: 600; text-transform: none; color: var(--fg-2); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}}>
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-glow" id="pool" style="--s:calc(var(--u)*110);--a:.16;opacity:0"></div>
+  </div>
+
+  <div class="mo-world">
+    <div id="grid"></div>
+
+    <h1 class="mo-h1" id="q" data-var="title" data-label="질문(제목)">이번 주 참여가<br>가장 많았던 날은?</h1>
+    <div id="col"></div>
+
+    <div id="panelB">
+      <div id="donut"></div>
+      <div id="big"><div id="bigIn"><span id="n">0</span><small id="pct">%</small></div></div>
+      <div id="side">
+        <p id="sideLab"></p>
+        <div id="rule"></div>
+        <h2 class="mo-h2" id="take" data-var="takeaway" data-label="한 줄 결론">참여가 가장 많았던 날은<br>{top}입니다</h2>
+      </div>
+    </div>
+
+    <svg id="fly"><path id="ribbon"/></svg>
+  </div>
+
+  <div class="mo-hud">
+    <span class="hud tl" data-var="kicker" data-label="모서리 라벨">주간 참여 리포트</span>
+    <span class="hud tr" data-var="note" data-label="출처·예시 표시">(예시) 가상의 수치</span>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H, D } = M, tall = H > W;
+  if (tall) M.stage.classList.add('tall');
+  const k = D / 14, T = (s) => +(s * k).toFixed(3);          // 14초 기준 비트 — 다른 길이로 만들면 비율대로 늘고 준다(권장 12–18초)
+  const Q = (s) => +(s * Math.min(1, k)).toFixed(3);         // 14초보다 짧으면 움직임 자체도 그만큼 빨라진다
+
+  // ── 데이터 ──
+  const values = String(M.var('values', '42,58,50,94,71', { label: '값(쉼표로)' })).split(/[,，]/).map((s) => Math.max(0, parseFloat(s) || 0));
+  const labels = String(M.var('labels', '월요일,화요일,수요일,목요일,금요일', { label: '항목 이름(쉼표로)' })).split(/[,，]/).map((s) => s.trim());
+  const unit = String(M.var('unit', '명', { label: '단위' }));
+  const key = M.var('key', 0, { label: '강조할 항목 번호(0 = 가장 큰 값)', type: 'number' });
+  const n = values.length, max = Math.max(...values), maxV = (max || 1) * 1.08;
+  const hi = key >= 1 && key <= n ? Math.round(key) - 1 : values.indexOf(max);
+  const total = values.reduce((a, b) => a + b, 0) || 1, mean = total / n, share = Math.round(values[hi] / total * 100);
+  const top = labels[hi] || '', fmt = (v) => (+v).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const tokens = { top, value: fmt(values[hi]), unit, share: String(share), total: fmt(total) };
+  M.$$('[data-var]').forEach((el) => {
+    el.innerHTML = el.innerHTML.replace(/\{(top|value|unit|share|total)\}/g, (m, t) => (t === 'top' && el.id === 'take' ? `<span class="key">${esc(top)}</span>` : esc(tokens[t])));
+  });
+  M.$('#sideLab').innerHTML = `전체 <b>${fmt(total)}</b>${esc(unit)} 중 ${esc(top)} <b>${fmt(values[hi])}</b>${esc(unit)}`;
+
+  // ── 무대 ──
+  M.grain();
+  cam.drift({ zoom: 1.03 });
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, stagger: 0.12 }, 0.1);
+
+  // ── 1 질문 (0–2.5) ── 비스듬히 있던 세계가 바로 서며 질문이 어절 단위로 솟는다(첫 프레임부터 움직이는 중)
+  cam.set({ rx: 4, ry: -10, zoom: 1.1, x: W / 2 - u * 6, y: H / 2 + u * 2 });
+  cam.to({ rx: 0, ry: 0, zoom: 1, x: W / 2, y: H / 2, duration: T(2.5), ease: 'mo.out' }, 0);
+  M.reveal('#q', { type: 'words', pre: 0.4 }, 0);
+
+  // ── 2 막대 (2.5–5.4) ── 질문은 왼쪽 머리글로 작아지고, 기준선이 그어지며 막대가 선다. 값은 막대 끝을 타고 오른다
+  const qr = M.rect('#q'), cr = M.rect('#col');
+  M.chart('#col', { type: 'column', data: values, labels, highlight: hi, max: maxV, duration: Q(1.2) }, T(2.8));
+  const items = M.$$('#col .mo-chart-item'), fills = items.map((it) => it.querySelector('.mo-chart-fill')), tracks = items.map((it) => it.querySelector('.mo-chart-track'));
+  const vals = items.map((it, i) => { const v = it.querySelector('.mo-chart-val'); tracks[i].appendChild(v); v.style.setProperty('--v', (values[i] / maxV).toFixed(4)); return v; });
+  M.onFrame(() => vals.forEach((v, i) => v.style.setProperty('--s', (+gsap.getProperty(fills[i], 'scaleY')).toFixed(4))));
+  tl.to('#q', { scale: tall ? 0.8 : 0.56, y: (tall ? H * 0.17 : cr.y) - qr.y, duration: Q(0.95), ease: 'mo.inOut' }, T(2.5));
+  tl.to('#col', { '--base': 1, duration: Q(0.9), ease: 'mo.inOut' }, T(2.6));
+  M.sfx('swipe', { volume: 0.5 }, T(2.8));
+
+  // 평균선: 강조값을 무엇과 비교하는지 먼저 보여 준다. 값 숫자와 겹치는 곳은 끊는다
+  const tr0 = M.rect(tracks[0]), ty = tr0.y - cr.y, th = tr0.h, fs = parseFloat(getComputedStyle(vals[0]).fontSize);
+  const ay = ty + th * (1 - mean / maxV), sc = M.stage.getBoundingClientRect().width / W;
+  const cuts = [];
+  vals.forEach((v, i) => {
+    v.textContent = fmt(values[i]);                                                 // 최종 숫자 폭으로 잰다(카운터가 매 프레임 다시 쓴다)
+    const rg = document.createRange(); rg.selectNodeContents(v); const tw = rg.getBoundingClientRect().width / sc;
+    const bottom = ty + th - th * values[i] / maxV - u * 1.3, topY = bottom - fs * 1.2, ix = M.rect(items[i]).cx - cr.x;
+    if (ay > topY + fs * 0.12 && ay < bottom - fs * 0.04) cuts.push([ix - tw / 2 - u * 1.2, ix + tw / 2 + u * 1.2]);
+  });
+  let d = '', x = 0; cuts.sort((a, b) => a[0] - b[0]).forEach(([a, b]) => { if (a > x) d += `M${x.toFixed(1)} 1 H${a.toFixed(1)} `; x = Math.max(x, b); });
+  if (x < cr.w) d += `M${x.toFixed(1)} 1 H${cr.w.toFixed(1)}`;
+  const avg = M.el(`<svg id="avg" width="${cr.w}" height="2" viewBox="0 0 ${cr.w} 2"><path d="${d}" stroke-dasharray="${(u * 0.55).toFixed(1)} ${(u * 0.55).toFixed(1)}"/></svg>`, '#col');
+  avg.style.top = (ay - 1).toFixed(1) + 'px';
+  M.el(`<p class="gut" id="avgLab">평균<b>${fmt(Math.round(mean * 10) / 10)}</b></p>`, '#col').style.top = ay.toFixed(1) + 'px';
+  if (unit) M.el(`<p class="gut" id="unitLab">(단위: ${esc(unit)})</p>`, '#col');
+  M.reveal('#unitLab', { type: 'fade', y: 0, duration: Q(0.6) }, T(3.2));
+  M.reveal('#avg', { type: 'wipe', dir: 'right', duration: Q(0.9) }, T(4.5));          // 닦아 내듯 — 늘려서 그리면 끊긴 자리가 함께 미끄러진다
+  M.reveal('#avgLab', { type: 'fade', y: 0, duration: Q(0.5) }, T(4.75));
+
+  // ── 3 강조 (5.4–7.6) ── 질문이 물러나고, 나머지는 한 톤 내려가며, 카메라가 차트로 다가간다. 주석은 평균과의 차이
+  const item = items[hi], fill = fills[hi], others = items.filter((e) => e !== item);
+  tl.to('#q', { autoAlpha: 0, y: '-=' + u * 1.6, duration: Q(0.45), ease: 'mo.in' }, T(5.35));
+  tl.to(others, { opacity: 0.34, duration: Q(0.6), ease: 'power2.out' }, T(5.4));
+  const ratio = values[hi] / (mean || 1), lift = th * (max - values[hi]) / maxV, len = u * 4.5 + lift;   // 더 큰 막대가 있으면 그 위까지 끌어올린다
+  M.callout(vals[hi], { text: `평균의 ${ratio.toFixed(1)}배<small>${esc(top)}${values[hi] === max ? ' · 가장 많음' : ''}</small>`, side: 'top', length: len, sfx: true }, Math.min(T(5.75), T(7.6) - Q(0.2) - 1.6));   // 짧게 만들어도 1.6초는 읽힌다
+  // 주석 꼭대기부터 항목 이름까지가 화면 높이의 80%에 들어오게
+  const ir = M.rect(item), vr = M.rect(vals[hi]), spanTop = vr.y - len - u * 1.2 - u * 7.6, spanBot = cr.y + cr.h;
+  const gx = tall ? cr.x : cr.x - M.rect('#avgLab').w - u * 1.6, spanW = cr.x + cr.w - gx;     // 왼쪽 여백의 평균·단위 글자까지 화면에 남긴다
+  const fz = Math.min(1.24, (H * 0.8) / (spanBot - spanTop) / 1.02, (W * 0.88) / spanW / 1.02);
+  const hw = W / (2 * fz * 1.045) - u * 2, fxMin = gx + spanW - hw, fxMax = gx + hw;                 // 드리프트·흔들림까지 감안한 화면 반폭
+  const focus = { x: fxMin > fxMax ? gx + spanW / 2 : M.clamp(M.lerp(cr.x + cr.w / 2, ir.cx, 0.4), fxMin, fxMax), y: (spanTop + spanBot) / 2 };
+  cam.to({ ...focus, zoom: fz, duration: Q(1.9) }, T(5.35));
+  const pool = M.$('#pool'), glow = getComputedStyle(M.stage).colorScheme === 'light' ? 0.07 : 0.16;   // 밝은 테마에서 색 빛은 얼룩처럼 보인다 — 아주 옅게
+  pool.style.setProperty('--a', glow);
+  gsap.set(pool, { left: ((ir.cx - focus.x) * fz + W / 2) / W * 100 + '%', top: ((cr.y + cr.h * 0.55 - focus.y) * fz + H / 2) / H * 100 + '%' });
+  tl.to(pool, { opacity: 1, duration: Q(1.4), ease: 'sine.inOut' }, T(5.4));
+
+  // ── 4 막대 → 도넛 조각 (7.6–9.2) ── 강조 막대가 떠올라 날아가며 같은 색의 조각으로 휘어 빈 칸에 앉는다
+  const t0 = T(7.6), fly = Q(1.6), tLand = t0 + fly;
+  const dr = M.rect('#donut'), size = Math.min(dr.w, dr.h), R = size * 0.4, sw = size * 0.085, gap = n > 1 ? 0.006 : 0;
+  const fracs = values.map((v) => v / total), accs = fracs.map((f, i) => fracs.slice(0, i).reduce((a, b) => a + b, 0));
+  const span = Math.max(0.002, fracs[hi] - gap) * Math.PI * 2, phi = (-90 + accs[hi] * 360) * Math.PI / 180 + span / 2;
+  const C = { x: dr.x + dr.w / 2, y: dr.y + dr.h / 2 }, fr = M.rect(fill);
+  const A = { x: fr.x + fr.w / 2, y: fr.y + fr.h / 2, th: -Math.PI / 2, L: fr.h, w: fr.w, k: 0, rh: u * 0.9, rt: u * 0.2 };
+  const B = { x: C.x + R * Math.cos(phi), y: C.y + R * Math.sin(phi), th: phi + Math.PI / 2, L: R * span, w: sw, k: 1 / R, rh: 0, rt: 0 };
+  B.th = A.th + Math.atan2(Math.sin(B.th - A.th), Math.cos(B.th - A.th));          // 가장 적게 도는 쪽으로
+  // 둥근 사각형을 띠 좌표(s: 길이 방향, v: 폭 방향)로 만들고, 곡률 kk로 휜 띠 위에 올린다
+  function ribbon(cx, cy, ang, L, w, kk, rh, rt) {
+    const hl = L / 2, hw = w / 2, pts = [];
+    rh = Math.min(rh, hw, hl); rt = Math.min(rt, hw, hl);
+    const arc = (ox, oy, r, a0, a1, m) => { for (let i = 0; i <= m; i++) { const a = a0 + (a1 - a0) * i / m; pts.push([ox + r * Math.cos(a), oy + r * Math.sin(a)]); } };
+    const edge = (s0, v0, s1, v1, m) => { for (let i = 0; i <= m; i++) pts.push([s0 + (s1 - s0) * i / m, v0 + (v1 - v0) * i / m]); };
+    edge(-hl + rt, -hw, hl - rh, -hw, 48); arc(hl - rh, -hw + rh, rh, -Math.PI / 2, 0, 6);
+    edge(hl, -hw + rh, hl, hw - rh, 6); arc(hl - rh, hw - rh, rh, 0, Math.PI / 2, 6);
+    edge(hl - rh, hw, -hl + rt, hw, 48); arc(-hl + rt, hw - rt, rt, Math.PI / 2, Math.PI, 6);
+    edge(-hl, hw - rt, -hl, -hw + rt, 6); arc(-hl + rt, -hw + rt, rt, Math.PI, Math.PI * 1.5, 6);
+    const tx = Math.cos(ang), ty2 = Math.sin(ang), nx = -ty2, ny = tx;
+    return 'M' + pts.map(([s, v]) => {
+      const a = kk * s, small = Math.abs(a) < 1e-4, S = small ? s : Math.sin(a) / kk, Cc = small ? kk * s * s / 2 : (1 - Math.cos(a)) / kk;
+      const Nx = -tx * Math.sin(a) + nx * Math.cos(a), Ny = -ty2 * Math.sin(a) + ny * Math.cos(a);
+      return (cx + tx * S + nx * Cc + Nx * v).toFixed(2) + ' ' + (cy + ty2 * S + ny * Cc + Ny * v).toFixed(2);
+    }).join(' L') + ' Z';
+  }
+  const svg = M.$('#fly'), path = M.$('#ribbon');
+  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const eMove = M.ease('mo.inOut'), eBend = M.ease('power2.inOut');
+  M.onFrame((t) => {
+    const p = M.clamp((t - t0) / fly, 0, 1), m = eMove(p), b = eBend(M.clamp((p - 0.12) / 0.88, 0, 1)), L = M.lerp;
+    path.setAttribute('d', ribbon(L(A.x, B.x, m), L(A.y, B.y, m), L(A.th, B.th, m), L(A.L, B.L, b), L(A.w, B.w, b), L(A.k, B.k, b), L(A.rh, B.rh, b), L(A.rt, B.rt, b)));
+  });
+  M.scene('#fly', t0, tLand).scene(fill, 0, t0);
+  M.sfx('whoosh', { volume: 0.6 }, t0);
+
+  const pb = M.rect('#panelB'), endCam = { x: pb.x + W / 2, y: H / 2 };
+  cam.to({ ...endCam, duration: fly, ease: 'mo.inOut' }, t0);
+  cam.to({ zoom: 0.84, duration: fly * 0.5, ease: 'sine.inOut' }, t0);
+  cam.to({ zoom: 1, duration: fly * 0.5, ease: 'sine.inOut' }, t0 + fly * 0.5);
+  M.exit('.mo-callout', { type: 'fade', y: 0, duration: Q(0.3) }, t0 - Q(0.2));
+  tl.to([...vals, ...M.$$('#col .mo-chart-lab'), ...M.$$('#avg, #avgLab, #unitLab')], { opacity: 0, duration: Q(0.4), ease: 'mo.in' }, t0 - Q(0.1));
+  tl.to(others, { opacity: 0.1, duration: Q(0.7), ease: 'power1.in' }, t0);
+  tl.to('#col', { '--base': 0, duration: Q(0.7), ease: 'mo.in' }, t0);                              // 기준선도 거둔다
+  tl.to(pool, { left: (C.x - endCam.x + W / 2) / W * 100 + '%', top: (C.y - endCam.y + H / 2) / H * 100 + '%', duration: fly, ease: 'mo.inOut' }, t0);
+
+  // 도넛은 빈 칸 하나만 남기고 먼저 그려진다 — 날아온 조각이 마지막 칸을 채운다
+  const dd = Q(1.0), ends = fracs.map((f, i) => accs[i] * 0.9 + Math.max(0.35, f * 1.6));
+  M.chart('#donut', { type: 'donut', data: values, labels, highlight: hi, duration: dd }, tLand - Q(0.12) - dd * Math.max(...ends));
+  M.scene('#donut .mo-chart-seg.hi', tLand);
+  M.sfx('tap', { volume: 0.8 }, tLand);
+
+  // ── 5 큰 숫자 (9.0–10.4) ── 조각이 앉는 순간부터 그 몫을 센다
+  M.reveal('#bigIn', { type: 'fade', y: u * 1.2, duration: Q(0.6) }, tLand - Q(0.35));
+  M.count('#n', { from: 0, to: share, duration: Q(1.3), ease: 'power3.out', pulse: { target: '#bigIn', scale: 1.04 }, sfx: true }, tLand - Q(0.15));
+
+  // ── 6 결론과 엔드카드 (9.6–14) ── 결론은 도넛의 가운데 높이에 맞추고, 답이 되는 말에 형광펜. 끝 1초 이상은 새 요소 없이
+  const side = M.$('#side'); side.style.top = (tall ? C.y - pb.y + size / 2 + u * 7 : C.y - pb.y - side.offsetHeight / 2).toFixed(1) + 'px';
+  M.reveal('#sideLab', { type: 'fade', y: u, duration: Q(0.7) }, tLand + Q(0.45));
+  M.reveal('#rule', { type: 'grow', origin: tall ? '50% 50%' : '0% 50%', duration: Q(0.9), ease: 'mo.inOut' }, tLand + Q(0.6));
+  M.reveal('#take', { type: 'rise', duration: Q(1.05), sfx: true }, tLand + Q(0.8));
+  M.highlight('#take .key', { duration: Q(0.6) }, tLand + Q(1.9));
+  cam.float({ rot: 0.18, pos: u * 0.25, period: 11 });
+  M.onFrame((t) => pool.style.setProperty('--a', (glow * (1 + 0.22 * Math.sin(t * 1.3))).toFixed(4)));     // 빛이 아주 느리게 숨 쉰다
+  cam.to({ zoom: 1.035, duration: D - tLand - 0.3, ease: 'sine.inOut' }, tLand + 0.3);
+  M.scene('#col, #q', 0, tLand + 0.3);
+});
+</script>
+</body>
+</html>

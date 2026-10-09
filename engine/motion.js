@@ -1,4 +1,4 @@
-/*! Motion Director runtime v1.0.0 — MIT
+/*! Motion Director runtime v2.0.0 — MIT
  *  A deterministic stage on top of one paused GSAP timeline.
  *  Every frame is a pure function of time:  window.__motion.seek(t)  → same pixels, always.
  *  No clocks, no Math.random, no network. Preview and render walk the exact same code path.
@@ -13,7 +13,9 @@
   var RENDER = QS.has('render');
   var NOCAM = QS.has('nocam');                 // review the resting layout with every camera move switched off
   var SCRAMBLE = 'ABCDEFGHJKLMNPQRSTUVWXYZ#/+<>';
-  var Motion = { version: '1.0.0', render: RENDER };
+  var Motion = { version: '2.0.0', render: RENDER };
+  var BASE = ((doc.currentScript && doc.currentScript.src) || '').replace(/[^/]*$/, '') || '_motion/';   // the _motion/ folder (adapters and assets load from here)
+  function esc(v) { return String(v).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   // ───────────────────────── math ─────────────────────────
   var TAU = Math.PI * 2;
@@ -65,6 +67,10 @@
     'mo.settle': springEase(0.78, 9)               // ~2% overshoot — large objects landing
   };
   Object.keys(EASES).forEach(function (k) { gsap.registerEase(k, EASES[k]); });
+  // GSAP's plugins ship in the same vendor file (all free since 3.13) — register whichever loaded
+  ['CustomEase', 'CustomWiggle', 'CustomBounce', 'MorphSVGPlugin', 'DrawSVGPlugin', 'MotionPathPlugin', 'Physics2DPlugin', 'PhysicsPropsPlugin', 'ScrambleTextPlugin', 'TextPlugin', 'SplitText', 'Flip'].forEach(function (k) {
+    if (global[k]) { try { gsap.registerPlugin(global[k]); } catch (e) { /* already registered */ } }
+  });
   gsap.defaults({ lazy: false, overwrite: false });
   gsap.config({ nullTargetWarn: false });
 
@@ -230,7 +236,12 @@
   }
   function mediaReady(stage) {
     var jobs = [];
-    toArray('img', stage).forEach(function (img) { if (!img.complete) jobs.push(new Promise(function (r) { img.onload = img.onerror = r; })); else if (img.decode) jobs.push(img.decode().catch(function () {})); });
+    // wait for pictures without taking over their own onload/onerror; an <img data-optional> that fails is simply hidden
+    toArray('img', stage).forEach(function (img) {
+      if (img.hasAttribute('data-optional')) { var hide = function () { img.style.display = 'none'; }; if (!img.getAttribute('src') || (img.complete && !img.naturalWidth)) hide(); else img.addEventListener('error', hide); }
+      if (!img.complete) jobs.push(new Promise(function (r) { img.addEventListener('load', r, { once: true }); img.addEventListener('error', r, { once: true }); }));
+      else if (img.decode && img.naturalWidth) jobs.push(img.decode().catch(function () {}));
+    });
     toArray('video', stage).forEach(function (v) { v.muted = true; v.pause(); v.preload = 'auto'; if (v.readyState < 2) jobs.push(new Promise(function (r) { v.addEventListener('loadeddata', r, { once: true }); v.addEventListener('error', r, { once: true }); })); });
     return Promise.all(jobs);
   }
@@ -240,15 +251,32 @@
   global.addEventListener('error', function (e) { fail((e.message || e) + (e.filename ? '  @' + String(e.filename).split('/').pop() + ':' + e.lineno : '')); });
   global.addEventListener('unhandledrejection', function (e) { fail('unhandled: ' + (e.reason && e.reason.message || e.reason)); });
 
+  /**
+   * Things the first frame needs that live in files: audio analyses and caption files the CLI indexed in _motion/assets.json,
+   * and the optional adapters (three.js, Lottie) — loaded only when the composition mentions them.
+   */
+  function preload() {
+    var html = doc.documentElement.outerHTML, jobs = [], assets = Motion._assets = { audio: {}, text: {} };
+    jobs.push(fetch(BASE + 'assets.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (ix) {
+      if (!ix) return null;
+      return Promise.all(Object.keys(ix.audio || {}).map(function (k) { return fetch(BASE + ix.audio[k]).then(function (r) { return r.json(); }).then(function (j) { assets.audio[k] = j; }).catch(function () {}); })
+        .concat(Object.keys(ix.text || {}).map(function (k) { return fetch(ix.text[k]).then(function (r) { return r.text(); }).then(function (t) { assets.text[k] = t; }).catch(function () {}); })));
+    }));
+    if (/M\.three\s*\(|data-three/.test(html) && !Motion.THREE) jobs.push(import(BASE + 'three.module.js').then(function (m) { Motion.THREE = m; }).catch(function (e) { console.warn('[motion] three.js not available: ' + e.message); }));
+    if (/M\.lottie\s*\(|data-lottie/.test(html) && !global.lottie) jobs.push(new Promise(function (res) { var sc = doc.createElement('script'); sc.src = BASE + 'lottie.min.js'; sc.onload = sc.onerror = res; doc.head.appendChild(sc); }));
+    return Promise.all(jobs);
+  }
+
   Motion.compose = function (fn) {
     function start() {
       var stage = doc.getElementById('stage');
       if (!stage) return fail('No <div id="stage"> found.');
       var cfg = setupStage(stage);
-      Promise.all([fontsReady(), mediaReady(stage)]).then(function () {
+      Promise.all([fontsReady(), mediaReady(stage), preload()]).then(function () {
         var M = createContext(stage, cfg);
         Motion.current = M;
-        return Promise.resolve().then(function () { return fn(M); }).then(function () { finalize(M); });
+        M.declare();
+        return Promise.resolve().then(function () { return fn(M); }).then(function () { return Promise.all(M._ready); }).then(function () { finalize(M); });
       }).catch(function (e) { fail(e && e.stack || e); global.__motion = global.__motion || { ready: true, failed: true, errors: errors }; });
     }
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', start); else start();
@@ -265,9 +293,27 @@
   }
   Motion.setAccent = setAccent;
 
+  // a text variable's default as one line, with <br> written as the two characters \n (the same form --vars accepts)
+  function textWithBreaks(el) {
+    var c = el.cloneNode(true);
+    Array.prototype.slice.call(c.querySelectorAll('br')).forEach(function (b) { b.parentNode.replaceChild(doc.createTextNode('\u2028'), b); });
+    return c.textContent.split('\u2028').map(function (s) { return s.replace(/\s+/g, ' ').trim(); }).join('\\n').replace(/^(\\n)+|(\\n)+$/g, '');
+  }
+
   function setupStage(stage) {
     var W = +stage.dataset.width || 1080, H = +stage.dataset.height || 1920;
     var cfg = { W: W, H: H, fps: +stage.dataset.fps || 30, D: +stage.dataset.duration || 8, title: stage.dataset.title || doc.title || 'motion' };
+    // template variables: <h1 data-var="title">기본 문구</h1> · <img data-var="photo" src="a.jpg"> · built-ins accent and theme (--vars "title=…&accent=mint")
+    var defs = Motion._varDefs = {};
+    if (QS.get('accent')) stage.dataset.accent = QS.get('accent');
+    if (QS.get('theme')) stage.dataset.theme = QS.get('theme');
+    defs.accent = { name: 'accent', type: 'color', default: stage.dataset.accent || 'blue', label: '', builtin: true };
+    toArray('[data-var]', stage).forEach(function (el) {
+      var name = el.dataset.var, media = /^(IMG|VIDEO|AUDIO|SOURCE)$/.test(el.tagName);
+      if (!defs[name]) defs[name] = { name: name, type: media ? 'file' : 'text', default: media ? el.getAttribute('src') : textWithBreaks(el), label: el.dataset.label || '' };
+      var v = QS.get(name); if (v == null) return;                       // --vars "note=" blanks a line on purpose (batch skips empty cells)
+      if (media) el.setAttribute('src', v); else el.innerHTML = esc(v).replace(/\\n|\n/g, '<br>');
+    });
     stage.style.setProperty('--W', W + 'px'); stage.style.setProperty('--H', H + 'px');
     stage.style.setProperty('--u', (Math.min(W, H) / 100) + 'px');
     if (!stage.dataset.theme) stage.dataset.theme = 'ink';
@@ -347,8 +393,14 @@
       _appliers: appliers, _pending: pending
     };
     /** vars: URL parameters (motion render --vars "title=...&n=3") — lets one composition serve as a template. */
-    M.vars = {}; QS.forEach(function (v, k) { if (k !== 'render' && k !== 't' && k !== 'autoplay') M.vars[k] = v; });
-    M.var = function (name, fallback) { return M.vars[name] == null || M.vars[name] === '' ? fallback : (typeof fallback === 'number' ? +M.vars[name] : M.vars[name]); };
+    M.vars = {}; QS.forEach(function (v, k) { if (!/^(render|t|autoplay|nocam|guides)$/.test(k)) M.vars[k] = v; });
+    /** var(name, fallback, { label, type: 'text' | 'number' | 'color' | 'select', options, min, max }) — a template value with a schema (preview panel, motion vars, batch). */
+    M.var = function (name, fallback, meta) {
+      var defs = M.varDefs || (M.varDefs = Motion._varDefs || {});
+      meta = meta || {};
+      if (!defs[name]) defs[name] = { name: name, type: meta.type || (typeof fallback === 'number' ? 'number' : (/^#[0-9a-f]{3,8}$/i.test(String(fallback)) ? 'color' : 'text')), default: fallback, label: meta.label || '', options: meta.options || null, min: meta.min, max: meta.max };
+      return M.vars[name] == null || M.vars[name] === '' ? fallback : (typeof fallback === 'number' ? +M.vars[name] : M.vars[name]);
+    };
     function pos(at) { return at == null ? '>' : at; }
     function px(v) { return typeof v === 'number' ? v : parseFloat(v) || 0; }
     /** Resolve a position parameter to absolute seconds (numbers, labels; otherwise current end). */
@@ -360,6 +412,7 @@
     M.snap = snap;
     M.ease = function (name) { return gsap.parseEase(name); };
     M.beats = function (bpm, offset, opts) {
+      if (bpm && typeof bpm === 'object' && bpm.beat) { var tv = bpm, g = function (n) { return tv.beat(n + (+offset || 0)); }; g.len = 60 / (tv.bpm || 120); g.bpm = tv.bpm; return g; }
       if (offset && typeof offset === 'object') { opts = offset; offset = 0; }
       var len = 60 / bpm, snapped = !(opts && opts.snap === false);
       var b = function (n) { var t = (offset || 0) + n * len; return snapped ? snap(t) : t; };
@@ -423,7 +476,7 @@
     M.transition = function (type, from, to, o) {
       o = o || {};
       var a = one(from, stage), b = one(to, stage), at = snap(M.time(o.at)), sub = gsap.timeline();
-      var d = o.duration == null ? ({ cut: 0, push: 0.85, wipe: 0.9, iris: 0.9, zoom: 0.9, flip: 0.9, whip: 0.5, fade: 0.6 }[type] || 0.8) : o.duration;
+      var d = o.duration == null ? ({ cut: 0, push: 0.85, wipe: 0.9, iris: 0.9, zoom: 0.9, flip: 0.9, whip: 0.5, fade: 0.6, slide: 0.85, blur: 0.7, flash: 0.5, leak: 1.0, clock: 0.9, blinds: 0.9, warp: 0.9, glitch: 0.45 }[type] || 0.8) : o.duration;
       var dir = o.dir || 'left', sx = dir === 'left' ? -1 : dir === 'right' ? 1 : 0, sy = dir === 'up' ? -1 : dir === 'down' ? 1 : 0;
       var mid = at + d / 2, ra = a ? sceneRec(a) : null, rb = b ? sceneRec(b) : null;
       if (b) { b.style.zIndex = String((+(a && a.style.zIndex) || 1) + 1); }
@@ -474,6 +527,70 @@
           if (b) sub.fromTo(b, { xPercent: -wx * 100, yPercent: -sy * 100, skewX: -wx * 7 }, { xPercent: 0, yPercent: 0, skewX: 0, duration: d * 0.6, ease: 'mo.out' }, d * 0.4);
           break;
         }
+        case 'slide':
+          win(at + d, at);
+          if (a) sub.fromTo(a, { xPercent: 0, yPercent: 0, filter: 'brightness(1)' }, { xPercent: sx * 30, yPercent: sy * 30, filter: 'brightness(0.55)', duration: d, ease: o.ease || 'mo.inOut' }, 0);
+          if (b) sub.fromTo(b, { xPercent: -sx * 100, yPercent: -sy * 100, boxShadow: '0 0 0 rgba(0,0,0,0)' }, { xPercent: 0, yPercent: 0, boxShadow: '0 0 ' + (U * 9) + 'px rgba(0,0,0,0.38)', duration: d, ease: o.ease || 'mo.inOut' }, 0);
+          if (a) sub.set(a, { filter: 'none' }, d);
+          break;
+        case 'blur':
+          win(at + d * 0.75, at + d * 0.25);
+          if (a) sub.fromTo(a, { filter: 'blur(0px)', autoAlpha: 1, scale: 1 }, { filter: 'blur(' + (U * 3) + 'px)', autoAlpha: 0, scale: 1.04, duration: d * 0.75, ease: 'power2.in' }, 0);
+          if (b) { sub.fromTo(b, { filter: 'blur(' + (U * 3) + 'px)', autoAlpha: 0, scale: 0.97 }, { filter: 'blur(0px)', autoAlpha: 1, scale: 1, duration: d * 0.75, ease: 'mo.out' }, d * 0.25); sub.set(b, { filter: 'none' }, d); }
+          break;
+        case 'flash': {
+          win(mid, mid);
+          var fl = h('div', 'mo-flash', stage); fl.setAttribute('data-mo-ignore', ''); fl.style.background = o.color ? (ACCENTS[o.color] || o.color) : '#FFFFFF';
+          sceneRec(fl).w = [[at, snap(at + d)]];
+          sub.fromTo(fl, { opacity: 0 }, { opacity: 1, duration: d * 0.45, ease: 'power2.in', immediateRender: false }, 0).to(fl, { opacity: 0, duration: d * 0.55, ease: 'power2.out' }, d * 0.45);
+          if (a) sub.to(a, { scale: 1.06, duration: d * 0.5, ease: 'power2.in' }, 0);
+          if (b) sub.fromTo(b, { scale: 1.07 }, { scale: 1, duration: d * 0.9, ease: 'mo.out' }, d * 0.45);
+          break;
+        }
+        case 'leak':
+          win(at + d * 0.7, at + d * 0.3);
+          if (a) sub.to(a, { autoAlpha: 0, duration: d * 0.5, ease: 'power1.inOut' }, d * 0.2);
+          if (b) sub.fromTo(b, { autoAlpha: 0 }, { autoAlpha: 1, duration: d * 0.5, ease: 'power1.inOut' }, d * 0.3);
+          M.leak({ duration: d * 1.2, intensity: o.intensity, color: o.color }, Math.max(0, at - d * 0.08));
+          break;
+        case 'clock':
+          win(at + d, at);
+          if (b) {
+            var mk = 'conic-gradient(from 0deg at ' + (o.x || '50%') + ' ' + (o.y || '50%') + ', #000 calc(var(--clk) - 0.6deg), transparent var(--clk))';
+            sub.set(b, { '--clk': '0deg', webkitMaskImage: mk, maskImage: mk }, 0).fromTo(b, { '--clk': '0deg' }, { '--clk': '361deg', duration: d, ease: o.ease || 'mo.inOut', immediateRender: false }, 0).set(b, { webkitMaskImage: 'none', maskImage: 'none' }, d);
+          }
+          if (a) sub.to(a, { scale: 1.03, duration: d, ease: 'power1.in' }, 0);
+          break;
+        case 'blinds':
+          win(at + d, at);
+          if (b) {
+            var per = 100 / (o.count || 7), mkb = 'repeating-linear-gradient(' + (o.angle == null ? 90 : o.angle) + 'deg, #000 0 calc(var(--bl) * ' + per.toFixed(3) + '%), transparent calc(var(--bl) * ' + per.toFixed(3) + '%) ' + per.toFixed(3) + '%)';
+            sub.set(b, { '--bl': 0, webkitMaskImage: mkb, maskImage: mkb }, 0).fromTo(b, { '--bl': 0 }, { '--bl': 1.002, duration: d, ease: o.ease || 'mo.inOut', immediateRender: false }, 0).set(b, { webkitMaskImage: 'none', maskImage: 'none' }, d);
+          }
+          if (a) sub.to(a, { scale: 1.03, duration: d, ease: 'power1.in' }, 0);
+          break;
+        case 'warp': {
+          win(at + d * 0.62, at + d * 0.38);
+          var wid = 'mo-warp-' + (++filterSeq), turb = '<feTurbulence type="fractalNoise" baseFrequency="' + (o.freq || 0.008) + ' ' + (o.freq2 || 0.016) + '" numOctaves="2" seed="' + (o.seed || 7) + '"/>', amt = o.amount || U * 24;
+          var fa = filterEl(wid + 'a', turb + '<feDisplacementMap in="SourceGraphic" scale="0" xChannelSelector="R" yChannelSelector="G"/>'), fb = filterEl(wid + 'b', turb + '<feDisplacementMap in="SourceGraphic" scale="' + amt + '" xChannelSelector="R" yChannelSelector="G"/>');
+          if (a) sub.set(a, { filter: 'url(#' + wid + 'a)' }, 0).to(fa.lastChild, { attr: { scale: amt }, duration: d * 0.62, ease: 'power2.in' }, 0).to(a, { autoAlpha: 0, duration: d * 0.3, ease: 'power1.in' }, d * 0.32);
+          if (b) sub.set(b, { filter: 'url(#' + wid + 'b)' }, d * 0.38).fromTo(b, { autoAlpha: 0 }, { autoAlpha: 1, duration: d * 0.3, ease: 'power1.out', immediateRender: false }, d * 0.38).fromTo(fb.lastChild, { attr: { scale: amt } }, { attr: { scale: 0 }, duration: d * 0.62, ease: 'mo.out', immediateRender: false }, d * 0.38).set(b, { filter: 'none' }, d);
+          break;
+        }
+        case 'glitch': {
+          win(mid, mid);
+          var gid = 'mo-glitch-' + (++filterSeq), gf = filterEl(gid, '<feTurbulence type="turbulence" baseFrequency="0.00001 ' + (o.freq || 0.08) + '" numOctaves="1" seed="1" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="B" result="d"/><feColorMatrix in="d" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="0" dy="0" result="ro"/><feColorMatrix in="d" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" result="gb"/><feBlend in="ro" in2="gb" mode="screen"/>');
+          var gT = gf.querySelector('feTurbulence'), gD = gf.querySelector('feDisplacementMap'), gO = gf.querySelector('feOffset'), g0 = at, g1 = at + d, amp = o.amount || U * 9;
+          appliers.push(function (t, f) {
+            var on = t >= g0 - 1e-6 && t < g1 - 1e-6, env = on ? Math.sin(Math.PI * clamp((t - g0) / d, 0, 1)) : 0;
+            [a, b].forEach(function (el) { if (!el) return; var want = on ? 'url(#' + gid + ')' : ''; if (el._moGl !== want) { el.style.filter = want; el._moGl = want; } });
+            if (!on) return;
+            gT.setAttribute('seed', String(1 + (f % 97)));
+            gD.setAttribute('scale', (env * amp * (0.35 + hash2(f, 5))).toFixed(1));
+            gO.setAttribute('dx', ((hash2(f, 9) - 0.5) * env * U * 2.4).toFixed(1));
+          });
+          break;
+        }
         default:
           win(at + d, at);
           if (b) sub.fromTo(b, { autoAlpha: 0 }, { autoAlpha: 1, duration: d, ease: 'power1.inOut' }, 0);
@@ -520,15 +637,17 @@
       var type = o.type || 'fade', make = REVEALS[type]; if (!make) { fail('reveal: unknown type "' + type + '"'); make = REVEALS.fade; }
       return tlAt(make(els, o), at);
     };
+    // exits move from wherever the element already is (an element parked at y −400 fades up 2u, not 378 px)
+    function rel(v) { v = +v || 0; return v < 0 ? '-=' + (-v) : '+=' + v; }
     var EXITS = {
       rise: function (els, o) { var s = split(els, { by: 'lines' }); return gsap.to(s.lines, { yPercent: -118, duration: o.duration || 0.55, ease: o.ease || 'mo.in', stagger: o.stagger == null ? 0.05 : o.stagger }); },
       words: function (els, o) { var s = split(els, { by: 'words' }); return gsap.to(s.words, { yPercent: -118, duration: o.duration || 0.5, ease: o.ease || 'mo.in', stagger: o.stagger == null ? 0.03 : o.stagger }); },
       chars: function (els, o) { var s = split(els, { by: 'chars' }); return gsap.to(s.chars, { yPercent: -122, duration: o.duration || 0.45, ease: o.ease || 'mo.in', stagger: o.stagger == null ? 0.014 : o.stagger }); },
-      fade: function (els, o) { return gsap.to(els, { autoAlpha: 0, y: o.y == null ? -U * 2 : o.y, duration: o.duration || 0.4, ease: o.ease || 'mo.in', stagger: o.stagger == null ? 0.04 : o.stagger }); },
+      fade: function (els, o) { return gsap.to(els, { autoAlpha: 0, y: rel(o.y == null ? -U * 2 : o.y), duration: o.duration || 0.4, ease: o.ease || 'mo.in', stagger: o.stagger == null ? 0.04 : o.stagger }); },
       blur: function (els, o) { return gsap.to(els, { autoAlpha: 0, filter: 'blur(' + (o.blur || U * 1.6) + 'px)', scale: o.scale || 0.98, duration: o.duration || 0.5, ease: o.ease || 'mo.in', stagger: o.stagger || 0.04 }); },
       pop: function (els, o) { return gsap.to(els, { autoAlpha: 0, scale: o.scale || 0.8, duration: o.duration || 0.3, ease: o.ease || 'mo.in', stagger: o.stagger || 0.03 }); },
       wipe: function (els, o) { return gsap.to(els, { clipPath: (o.dir || 'right') === 'right' ? 'inset(-10% -2% -10% 100%)' : 'inset(-10% 100% -10% -2%)', duration: o.duration || 0.55, ease: o.ease || 'mo.inOut', stagger: o.stagger || 0.04 }); },
-      drop: function (els, o) { return gsap.to(els, { autoAlpha: 0, y: o.y || U * 5, duration: o.duration || 0.4, ease: o.ease || 'mo.in', stagger: o.stagger || 0.04 }); }
+      drop: function (els, o) { return gsap.to(els, { autoAlpha: 0, y: rel(o.y == null ? U * 5 : o.y), duration: o.duration || 0.4, ease: o.ease || 'mo.in', stagger: o.stagger || 0.04 }); }
     };
     /** exit(target, { type }, at) — exits are shorter than entrances and accelerate away. */
     M.exit = function (target, o, at) {
@@ -564,6 +683,10 @@
         }
       });
       tw.typed = typed; tw.caret = caret;
+      if (o.sfx) {
+        var kname = o.sfx === true ? 'key' : String(o.sfx), t0k = tw.startTime(), kr = rng(hashStr(text) + 3);
+        for (i = 1; i <= n; i++) M.sfx(kname, { volume: (o.sfxVolume || 0.7) * (0.75 + kr() * 0.35), pitch: 0.9 + kr() * 0.2 }, t0k + w[i] * total);
+      }
       return tw;
     };
     function fmt(v, dec, sep) { var s = v.toFixed(dec); if (!sep) return s; var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return p.join('.'); }
@@ -597,6 +720,10 @@
       tw.land = snap(tw.startTime() + land * dur);
       tw.widths = { from: wFrom, to: wTo };
       if (o.pulse) { var po = typeof o.pulse === 'object' ? o.pulse : {}; M.pulse(typeof o.pulse === 'string' ? o.pulse : (po.target || el), po, tw.land); }
+      if (o.sfx) {
+        var tname = o.sfx === true ? 'tick' : String(o.sfx), t0c = tw.startTime(), lastS = show(from), lastT = -1, ticks = 0;
+        for (var q = 1; q <= 240 && ticks < 30; q++) { var tq = t0c + dur * q / 240, sq = show(from + (o.to - from) * easeFn(q / 240)); if (sq !== lastS && tq - lastT >= 1 / 14) { M.sfx(tname, { volume: (o.sfxVolume || 0.5) }, tq); lastT = tq; ticks++; } lastS = sq; }
+      }
       return tw;
     };
     /** odometer(target, '1,284', { duration, stagger, spins }, at) — each digit rolls in its own masked column. */
@@ -664,7 +791,7 @@
     M.text = function (target, states, o) {
       o = o || {};
       var list = states.map(function (e) { return [snap(e[0]), String(e[1])]; }).sort(function (a, b) { return a[0] - b[0]; });
-      var dur = o.scramble === true ? 0.4 : (o.scramble || 0), set = o.chars || SCRAMBLE;
+      var dur = o.scramble === true ? 0.4 : (o.scramble || 0), set = o.chars || SCRAMBLE, soft = o.blur ? (o.blur === true ? 0.16 : +o.blur) : 0;
       toArray(target, stage).forEach(function (el) {
         var orig = el.textContent, seed = hashStr(orig + list.length);
         appliers.push(function (t, f) {
@@ -672,6 +799,7 @@
           var s = cur ? cur[1] : orig;
           if (cur && dur > 0 && t < cur[0] + dur) { var g = graphemes(s), edge = ((t - cur[0]) / dur) * (g.length + 2), out = ''; for (var k = 0; k < g.length; k++) out += (g[k] === ' ' || k < edge - 1) ? g[k] : set[Math.floor(hash2(k * 131 + Math.floor(f / 2), seed) * set.length)]; s = out; }
           if (el._s !== s) { el.textContent = s; el._s = s; }
+          if (soft) { var dt = cur ? t - cur[0] : 9, bl = dt >= 0 && dt < soft ? (1 - dt / soft) : 0; el.style.filter = bl > 0.02 ? 'blur(' + (bl * U * 0.9).toFixed(2) + 'px)' : ''; el.style.opacity = bl > 0.02 ? (1 - bl * 0.5).toFixed(3) : ''; }
         });
       });
       return M;
@@ -803,7 +931,11 @@
       var s = cam.s, zoom = s.zoom, x = s.x, y = s.y, rz = s.rz;
       if (cam._drift) { var d = cam._drift, p = clamp((t - d.a) / Math.max(1e-6, d.b - d.a), 0, 1); zoom *= lerp(d.z0, d.z1, p); x += d.x * p; y += d.y * p; rz += d.rz * p; }
       var rx = s.rx, ry = s.ry;
-      if (cam._float) { var fl = cam._float, ph = (t / fl.per) * TAU; rx += Math.sin(ph * 0.9 + 0.7) * fl.rot * 0.6; ry += Math.sin(ph + 2.1) * fl.rot; x += Math.sin(ph * 0.8) * fl.pos; y += Math.cos(ph * 0.65 + 1) * fl.pos; }
+      if (cam._float) {
+        // in a data-loop piece the float repeats a whole number of times per loop (period D/k, whole multiples) so the seam is invisible
+        var fl = cam._float, loopy = stage.hasAttribute('data-loop'), per = loopy ? D / Math.max(1, Math.round(D / fl.per)) : fl.per, mm = loopy ? [1, 1, 1, 1] : [0.9, 1, 0.8, 0.65], ph = (t / per) * TAU;
+        rx += Math.sin(ph * mm[0] + 0.7) * fl.rot * 0.6; ry += Math.sin(ph * mm[1] + 2.1) * fl.rot; x += Math.sin(ph * mm[2]) * fl.pos; y += Math.cos(ph * mm[3] + 1) * fl.pos;
+      }
       for (var q = 0; q < cam._shakes.length; q++) { var sh = cam._shakes[q], sv = sh.st.v; if (sv > 0.0005) { x += noise(t * 31, sh.seed) * sh.amp * sv; y += noise(t * 29, sh.seed + 12) * sh.amp * sv; rz += noise(t * 23, sh.seed + 26) * sv * 0.25; } }
       for (q = 0; q < cam._punches.length; q++) zoom *= cam._punches[q].v;
       if (NOCAM) { world.style.transform = ''; if (layers === null) layers = placeLayers(); return; }
@@ -1009,11 +1141,20 @@
       var vb = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width ? svg.viewBox.baseVal : { x: 0, y: 0, width: sr.w, height: sr.h };
       var k = Math.min(sr.w / vb.width, sr.h / vb.height), ox = sr.x - pp.x + (sr.w - vb.width * k) / 2 - vb.x * k, oy = sr.y - pp.y + (sr.h - vb.height * k) / 2 - vb.y * k;
       var tw = tw_fromTo(pr, { p: o.from || 0 }, { p: o.to == null ? 1 : o.to, duration: o.duration || 1.2, ease: o.ease || 'mo.inOut', immediateRender: false }, at);
-      appliers.push(function () {
-        var d = clamp(pr.p, 0, 1) * len, pt = path.getPointAtLength(d), tr = 'translate3d(' + (ox + pt.x * k).toFixed(2) + 'px,' + (oy + pt.y * k).toFixed(2) + 'px,0)';
-        if (o.rotate) { var q = path.getPointAtLength(Math.min(len, d + 1)), q0 = path.getPointAtLength(Math.max(0, d - 1)); tr += ' rotate(' + (Math.atan2(q.y - q0.y, q.x - q0.x) * 180 / Math.PI).toFixed(2) + 'deg)'; }
-        el.style.translate = 'none'; el.style.transform = tr;
-      });
+      // several follows on one element play in order: the one that started last owns the element (before the first, the first's start)
+      var rec = { tw: tw, pr: pr, path: path, len: len, k: k, ox: ox, oy: oy, rotate: !!o.rotate };
+      if (!el._moFollow) {
+        el._moFollow = [];
+        appliers.push(function (t) {
+          var list = el._moFollow, f = list[0];
+          for (var i = 0; i < list.length; i++) if (t >= list[i].tw.startTime() - 1e-6) f = list[i];
+          var d = clamp(f.pr.p, 0, 1) * f.len, pt = f.path.getPointAtLength(d), tr = 'translate3d(' + (f.ox + pt.x * f.k).toFixed(2) + 'px,' + (f.oy + pt.y * f.k).toFixed(2) + 'px,0)';
+          if (f.rotate) { var q = f.path.getPointAtLength(Math.min(f.len, d + 1)), q0 = f.path.getPointAtLength(Math.max(0, d - 1)); tr += ' rotate(' + (Math.atan2(q.y - q0.y, q.x - q0.x) * 180 / Math.PI).toFixed(2) + 'deg)'; }
+          el.style.translate = 'none'; el.style.transform = tr;
+        });
+      }
+      el._moFollow.push(rec);
+      el._moFollow.sort(function (a, b) { return a.tw.startTime() - b.tw.startTime(); });
       return tw;
     };
     /**
@@ -1040,6 +1181,700 @@
       el._moIris.push({ tw: tw, st: st, from: from, x: x, y: y, R: R });
       return tw;
     };
+
+    // ═══════════════════════════════ v2 — sound · captions · declarative markup · springs · shapes · effects · charts · adapters ═══════════════════════════════
+    var A = Motion._assets || { audio: {}, text: {} };
+    var LIGHT = getComputedStyle(stage).colorScheme === 'light';
+    M._ready = [];
+    /** wait(promise) — hold the first frame until something asynchronous (a 3D scene, an animation file) is ready. */
+    M.wait = function (p) { var q = Promise.resolve(p).catch(function (e) { fail('wait: ' + (e && e.message || e)); }); M._ready.push(q); return q; };
+
+    // ── time tokens: 1.2 · '1.2s' · 'b8' (beat 8 of the music, or of data-bpm on the stage) · a timeline label ──
+    function tok(v) {
+      if (v == null || v === '') return null;
+      if (typeof v === 'number') return v;
+      var s = String(v).trim(), m = /^b(-?\d+(?:\.\d+)?)$/i.exec(s);
+      if (m) return M.grid()(+m[1]);
+      if (/^-?\d+(?:\.\d+)?s?$/.test(s)) return parseFloat(s);
+      if (tl.labels[s] != null) return tl.labels[s];
+      var n = parseFloat(s); return isFinite(n) ? n : null;
+    }
+    M.tok = tok;
+
+    // ── sound: the page plans music, voice and effects; the renderer mixes them (lib/audio.mjs) ──
+    var tracks = [], effects = [];
+    function audioKey(src) { return String(src).split(/[?#]/)[0].replace(/^\.?\//, '').replace(/[^A-Za-z0-9._-]+/g, '_'); }
+    Motion.audioKey = audioKey;
+    function env(arr, rate, ft) {
+      if (!arr || !arr.length || !(ft >= 0)) return 0;
+      var x = ft * rate, i = Math.floor(x), f = x - i;
+      if (i >= arr.length - 1) return i === arr.length - 1 ? arr[i] / 255 : 0;
+      return (arr[i] + (arr[i + 1] - arr[i]) * f) / 255;
+    }
+    function trackView(tr) {
+      var a = A.audio[audioKey(tr.src)] || null, per = a && tr.loop ? Math.max(0.5, a.duration - tr.from) : Infinity;
+      function live(t) { return t >= tr.at - 1e-6 && (tr.end == null || t <= tr.end + 1e-6) && (!a || tr.loop || tr.from + (t - tr.at) <= a.duration); }
+      function ft(t) { var x = t - tr.at; if (per < Infinity) x = ((x % per) + per) % per; return tr.from + x; }
+      function times(list) {
+        var out = []; if (!a || !list) return out;
+        for (var rep = 0; rep < 256; rep++) {
+          var base = tr.at + rep * (per < Infinity ? per : 0);
+          for (var i = 0; i < list.length; i++) {
+            var x = list[i] - tr.from; if (x < -1e-6 || (per < Infinity && x >= per)) continue;
+            var t = base + x; if (t > D + 1e-6 || (tr.end != null && t > tr.end + 1e-6)) break;
+            out.push(snap(t));
+          }
+          if (per === Infinity || base + per > D) break;
+        }
+        return out;
+      }
+      var beats = times(a && a.beats), downs = times(a && a.downbeats), onsets = times(a && a.onsets);
+      var bpm = a && a.bpm ? a.bpm : (tr.bpm || 0), period = bpm ? 60 / bpm : 0.5;
+      return {
+        src: tr.src, at: tr.at, analysed: !!a, duration: a ? a.duration : null, bpm: bpm,
+        beats: beats, downbeats: downs, onsets: onsets, track: tr,
+        /** loudness 0–1 at composition time t (measured from the file) */
+        level: function (t) { return live(t) ? env(a && a.level, a ? a.rate : 100, ft(t)) : 0; },
+        /** bass 0–1 (kick drums, sub) */
+        low: function (t) { return live(t) ? env(a && a.low, a ? a.rate : 100, ft(t)) : 0; },
+        /** treble 0–1 (hats, sparkle) */
+        high: function (t) { return live(t) ? env(a && a.high, a ? a.rate : 100, ft(t)) : 0; },
+        /** beat(n): time of beat n (0-based). Fractional n interpolates; past the analysed beats the tempo carries on. */
+        beat: function (n) {
+          if (!beats.length) return snap(tr.at + n * period);
+          var i = Math.floor(n), f = n - i;
+          if (i < 0) return snap(beats[0] + n * period);
+          if (i >= beats.length - 1) return snap(beats[beats.length - 1] + (n - (beats.length - 1)) * period);
+          return snap(beats[i] + (beats[i + 1] - beats[i]) * f);
+        },
+        /** pulse(t, decay): 1 exactly on a beat, falling to 0 before the next — beat-locked flashes, bumps, glows. */
+        pulse: function (t, decay) { var p = null; for (var i = 0; i < beats.length && beats[i] <= t + 1e-6; i++) p = beats[i]; return p == null ? 0 : Math.exp(-(t - p) / (decay || 0.12)); }
+      };
+    }
+    /**
+     * audio(src, { at, from, end, volume, fadeIn, fadeOut, role: 'music' | 'voice' | 'sfx', duck, loop }) → track view
+     * The view reads the file's own analysis: level(t) · low(t) · high(t) · beats · downbeats · onsets · bpm · beat(n) · pulse(t).
+     * audio('#bgm') returns the view of an <audio> element declared in the markup.
+     */
+    M.audio = function (src, o) {
+      if (src && (src.nodeType || /^#/.test(String(src)))) {
+        var el = one(src, stage) || one(src, doc);
+        if (el && el._moTrack) return el._moTrack.view;
+        fail('audio: ' + src + ' is not a declared <audio> track'); return trackView({ src: '', at: 0, from: 0 });
+      }
+      if (!o) { for (var q = 0; q < tracks.length; q++) if (tracks[q].src === String(src)) return tracks[q].view; }   // the same file declared in the markup
+      o = o || {};
+      var role = o.role || 'music';
+      var tr = { src: String(src), at: snap(tok(o.at) || 0), from: +o.from || 0, end: o.end == null ? null : snap(tok(o.end)), volume: o.volume == null ? 1 : +o.volume,
+        fadeIn: o.fadeIn == null ? 0 : +o.fadeIn, fadeOut: o.fadeOut == null ? (role === 'music' ? 0.8 : 0) : +o.fadeOut, role: role,
+        duck: o.duck == null ? (role === 'music' ? 0.55 : 0) : +o.duck, loop: !!o.loop, bpm: +o.bpm || 0 };
+      tracks.push(tr); tr.view = trackView(tr);
+      return tr.view;
+    };
+    /** music() — the first music track (or null). */
+    M.music = function () { for (var i = 0; i < tracks.length; i++) if (tracks[i].role === 'music') return tracks[i].view; return null; };
+    /** grid() — the beat grid everything can lock to: the music's detected beats, else data-bpm on the stage (default 120). */
+    M.grid = function () {
+      var m = M.music();
+      if (m && m.beats.length > 1) { var g = function (n) { return m.beat(n); }; g.len = 60 / (m.bpm || 120); g.bpm = m.bpm; return g; }
+      return M.beats(+stage.dataset.bpm || 120, +stage.dataset.beatOffset || 0);
+    };
+    var SFX_DEFAULT = {
+      reveal: { pop: 'pop', slam: 'impact', drop: 'thud', lift: 'swish', wipe: 'swipe', grow: 'swipe', draw: 'swish', rise: 'swish', words: 'swish', chars: 'swish', fade: 'swish', blur: 'swish' },
+      exit: 'swish', press: 'click', click: 'click', tap: 'tap', type: 'key', count: 'tick', highlight: 'swipe', pulse: 'thud',
+      transition: { push: 'whoosh', slide: 'whoosh', whip: 'whip', wipe: 'swipe', zoom: 'whoosh', iris: 'swish', flip: 'swish', fade: null, cut: null, flash: 'impact', leak: 'swell', clock: 'swipe', blinds: 'swipe', warp: 'whoosh', glitch: 'glitch', blur: 'swish', split: 'whoosh' }
+    };
+    function sfxFor(o, kind, sub) {
+      if (!o || !o.sfx) return null;
+      if (o.sfx !== true) return String(o.sfx);
+      var d = SFX_DEFAULT[kind]; return d && typeof d === 'object' ? (d[sub] || null) : (d || null);
+    }
+    M._sfxFor = sfxFor;
+    /**
+     * sfx(name, { volume, pitch, pan }, at) — one sound effect. Built-in library (synthesised, no files needed):
+     * click tap tick key pop swish whoosh whip swipe riser swell impact thud drop ding success error shutter glitch sparkle.
+     * A file name ('boom.wav') next to the composition works too.
+     */
+    M.sfx = function (name, a1, a2) {
+      var fx = flex(a1, a2), o = fx.o, t = tok(fx.at);
+      if (!name || t == null) return M;
+      effects.push({ name: String(name), at: snap(t), volume: o.volume == null ? 1 : +o.volume, pitch: +o.pitch || 1, pan: +o.pan || 0 });
+      return M;
+    };
+    M._plan = function () {
+      return {
+        tracks: tracks.map(function (t) { return { src: t.src, at: t.at, from: t.from, end: t.end, volume: t.volume, fadeIn: t.fadeIn, fadeOut: t.fadeOut, role: t.role, duck: t.duck, loop: t.loop }; }),
+        sfx: effects.slice().sort(function (a, b) { return a.at - b.at; }), duration: D, fps: fps
+      };
+    };
+
+    // ── captions: word-timed subtitles from SRT / VTT / JSON (`motion captions align | plan` writes them) ──
+    function ts(x) { x = String(x).trim().split(/\s+/)[0].replace(',', '.'); var p = x.split(':').map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p.length === 2 ? p[0] * 60 + p[1] : +p[0]; }
+    function parseCues(src) {
+      if (Array.isArray(src)) return src;
+      if (src && typeof src === 'object') return src.cues || [];
+      var s = String(src || '').replace(/\r/g, '').replace(/^﻿/, '').trim();
+      if (/^[\[{]/.test(s)) { var j = JSON.parse(s); return Array.isArray(j) ? j : (j.cues || []); }
+      var out = [];
+      s.split(/\n\s*\n/).forEach(function (block) {
+        var lines = block.split('\n').filter(function (l) { return l.trim() && !/^WEBVTT/.test(l) && !/^NOTE\b/.test(l); });
+        var i = -1; for (var k = 0; k < lines.length; k++) if (/-->/.test(lines[k])) { i = k; break; }
+        if (i < 0) return;
+        var p = lines[i].split('-->'), text = lines.slice(i + 1).join('\n').replace(/<[^>]+>/g, '').trim();
+        if (text) out.push({ start: ts(p[0]), end: ts(p[1]), text: text });
+      });
+      return out;
+    }
+    function syllables(w) { var n = 0; for (var i = 0; i < w.length; i++) { var c = w.charCodeAt(i); if (c >= 0xAC00 && c <= 0xD7A3) n += 1; else if (/[A-Za-z]/.test(w[i])) n += 0.34; else if (/[0-9]/.test(w[i])) n += 0.8; } return Math.max(0.6, n); }
+    Motion.syllables = syllables;
+    function timeWords(c, off) {
+      if (c.words && c.words.length) return c.words.map(function (w) { return { w: String(w.w || w.word || w.text), t: (+(w.t != null ? w.t : w.start)) + off, e: (+(w.e != null ? w.e : w.end)) + off }; });
+      var ws = String(c.text).split(/\s+/).filter(Boolean), wt = ws.map(function (w) { return syllables(w) + (/[,.!?…]$/.test(w) ? 0.8 : 0); });
+      var tot = wt.reduce(function (s, v) { return s + v; }, 0) || 1, t = c.start, dur = c.end - c.start;
+      return ws.map(function (w, i) { var a = t; t += dur * wt[i] / tot; return { w: w, t: a, e: t }; });
+    }
+    /**
+     * captions(target, source, { style: 'karaoke' | 'pop' | 'box' | 'line', offset, linger }) — subtitles that follow the voice word by word.
+     * source: SRT/VTT/JSON text, a file next to the composition ('voice.srt'), or [{ start, end, text, words? }].
+     */
+    M.captions = function (target, source, o) {
+      o = o || {};
+      var box = one(target, stage); if (!box) { fail('captions: no element ' + target); return M; }
+      if (typeof source === 'string' && /\.(srt|vtt|json)$/i.test(source.trim())) {
+        var txt = A.text[audioKey(source.trim())];
+        if (txt == null) { fail('captions: ' + source + ' was not loaded — keep the file next to the composition and run it through the motion CLI'); return M; }
+        source = txt;
+      }
+      var off = +o.offset || 0, linger = o.linger == null ? 0.3 : +o.linger, style = o.style || 'karaoke';
+      var cues = parseCues(source).map(function (c) { return { start: +c.start + off, end: +c.end + off, text: String(c.text), words: c.words }; }).sort(function (a, b) { return a.start - b.start; });
+      box.classList.add('mo-captions', 'mo-cap-' + style);
+      var built = cues.map(function (c, ci) {
+        var line = h('div', 'mo-cap-line', box); line.style.visibility = 'hidden';
+        var ws = timeWords(c, c.words ? off : 0).map(function (w, wi) {
+          if (wi) line.appendChild(doc.createTextNode(' '));
+          var s = h('span', 'mo-cap-w', line); s.textContent = w.w; return { el: s, t: w.t, e: w.e };
+        });
+        var next = cues[ci + 1], end = next && next.start - c.end < linger + 0.2 ? next.start : c.end + linger;
+        return { line: line, words: ws, start: snap(c.start), end: snap(end) };
+      });
+      appliers.push(function (t) {
+        var act = null, i;
+        for (i = 0; i < built.length; i++) if (t >= built[i].start - 1e-6 && t < built[i].end - 1e-6) act = built[i];
+        for (i = 0; i < built.length; i++) { var b = built[i], on = b === act; if (b._on !== on) { b.line.style.visibility = on ? 'inherit' : 'hidden'; b._on = on; } }
+        if (!act) return;
+        var k = clamp((t - act.start) / 0.18, 0, 1), e = 1 - Math.pow(1 - k, 3);
+        act.line.style.opacity = e.toFixed(3); act.line.style.translate = '0 ' + ((1 - e) * 0.3).toFixed(3) + 'em';
+        act.words.forEach(function (w) {
+          var st = t < w.t - 1e-6 ? 0 : t < w.e - 1e-6 ? 1 : 2;
+          if (w._st !== st) { w.el.className = 'mo-cap-w' + (st === 1 ? ' now' : st === 2 ? ' done' : ''); w._st = st; }
+          if (style === 'pop') {
+            var p = clamp((t - w.t) / 0.3, 0, 1), s = p <= 0 ? 0 : 1 - Math.exp(-6.5 * p) * Math.cos(10 * p);
+            w.el.style.opacity = p > 0 ? '1' : '0'; w.el.style.scale = p > 0 ? (0.55 + 0.45 * s).toFixed(4) : '0.55';
+          }
+        });
+      });
+      M._captions = (M._captions || []).concat(built.map(function (b) { return { start: b.start, end: b.end, words: b.words.map(function (w) { return [+(+w.t).toFixed(3), +(+w.e).toFixed(3)]; }) }; }));
+      return M;
+    };
+
+    // ── springs: closed-form, a pure function of time ──
+    var SPRINGS = { gentle: { stiffness: 120, damping: 20 }, smooth: { stiffness: 170, damping: 26 }, snappy: { stiffness: 380, damping: 32 }, bouncy: { stiffness: 260, damping: 15 }, heavy: { stiffness: 90, damping: 19, mass: 2 }, stiff: { stiffness: 600, damping: 48 } };
+    var springCache = {};
+    /** Unit step response x(t) of a damped spring (0 → 1). */
+    function springFn(cfg) {
+      cfg = typeof cfg === 'string' ? (SPRINGS[cfg] || SPRINGS.smooth) : (cfg || SPRINGS.smooth);
+      var k = cfg.stiffness || 170, c = cfg.damping == null ? 26 : cfg.damping, m = cfg.mass || 1, v0 = cfg.velocity || 0;
+      var key = [k, c, m, v0].join('_'); if (springCache[key]) return springCache[key];
+      var w0 = Math.sqrt(k / m), z = c / (2 * Math.sqrt(k * m)), f;
+      if (z < 0.9999) { var wd = w0 * Math.sqrt(1 - z * z); f = function (t) { return t <= 0 ? 0 : 1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + ((z * w0 - v0) / wd) * Math.sin(wd * t)); }; }
+      else if (z <= 1.0001) f = function (t) { return t <= 0 ? 0 : 1 - Math.exp(-w0 * t) * (1 + (w0 - v0) * t); };
+      else { var r1 = -w0 * (z - Math.sqrt(z * z - 1)), r2 = -w0 * (z + Math.sqrt(z * z - 1)), Ac = (v0 + r2) / (r1 - r2), Bc = -1 - Ac; f = function (t) { return t <= 0 ? 0 : 1 + Ac * Math.exp(r1 * t) + Bc * Math.exp(r2 * t); }; }
+      var T = 0; for (var t = 0; t < 12; t += 1 / 240) if (Math.abs(f(t) - 1) > 0.002) T = t;
+      var out = { f: f, duration: Math.min(12, T + 1 / 240), key: key };
+      springCache[key] = out; return out;
+    }
+    /**
+     * spring('snappy' | { stiffness, damping, mass, velocity }) → { ease, duration } — physical motion for any tween:
+     * tl.to('#card', { y: 0, ...M.spring('bouncy') }, 1.2). Presets: gentle smooth snappy bouncy heavy stiff.
+     */
+    M.spring = function (cfg) {
+      var s = springFn(cfg), name = 'mo.sp_' + s.key.replace(/\./g, 'p');
+      if (!s.registered) { gsap.registerEase(name, function (p) { return p >= 1 ? 1 : s.f(p * s.duration); }); s.registered = true; }
+      return { ease: name, duration: +s.duration.toFixed(3) };
+    };
+    /**
+     * springValue([[t0, v0], [t1, v1], …], cfg) → v(t). Each change of target starts a new spring from wherever the value is,
+     * summed (superposition) — retargeting mid-flight stays smooth. Times may be beat tokens ('b4').
+     */
+    // keys: [[t, value], [t, value, 'bouncy'], …] — a third item sets the spring for the move into that key
+    M.springValue = function (keys, cfg) {
+      var s = springFn(cfg), ks = keys.map(function (k) { return [tok(k[0]) || 0, +k[1], k[2] != null ? springFn(k[2]) : s]; }).sort(function (a, b) { return a[0] - b[0]; });
+      return function (t) { if (!ks.length) return 0; var v = ks[0][1]; for (var i = 1; i < ks.length; i++) { if (t < ks[i][0]) break; v += (ks[i][1] - ks[i - 1][1]) * ks[i][2].f(t - ks[i][0]); } return v; };
+    };
+    /** springs(target, { x: [[0, 0], [1.2, 320]], scale: [[0, 1], [2, 1.1]] }, cfg) — drive properties with spring tracks. */
+    M.springs = function (target, props, cfg) {
+      var els = toArray(target, stage), fns = {};
+      Object.keys(props).forEach(function (p) { fns[p] = M.springValue(props[p], cfg); });
+      appliers.push(function (t) { var v = {}; for (var p in fns) v[p] = fns[p](t); gsap.set(els, v); });
+      return M;
+    };
+
+    // ── shapes & morphing (MorphSVG) ──
+    function pts2d(list, closed) { return 'M' + list.map(function (p) { return p[0].toFixed(2) + ' ' + p[1].toFixed(2); }).join(' L') + (closed ? ' Z' : ''); }
+    function smoothClosed(p) {
+      var n = p.length, d = 'M' + p[0][0].toFixed(2) + ' ' + p[0][1].toFixed(2);
+      for (var i = 0; i < n; i++) {
+        var p0 = p[(i - 1 + n) % n], p1 = p[i], p2 = p[(i + 1) % n], p3 = p[(i + 2) % n];
+        d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(2) + ' ' + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(2) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(2) + ' ' + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(2) + ' ' + p2[0].toFixed(2) + ' ' + p2[1].toFixed(2);
+      }
+      return d + ' Z';
+    }
+    /**
+     * shape(kind, { w, h, r, n, inner, seed, wobble }) → SVG path data in a w×h box (default 100×100).
+     * kinds: circle · rect (rounded with r) · squircle · polygon (n) · star (n, inner) · heart · blob (seed, wobble, n) · drop · arrow · plus · check
+     */
+    // shape({ x, y }) moves the outline; shape({ box: 100 }) centres a w×h shape in a 100×100 (or [w, h]) box — a circle morphing into a pill stays put
+    M.shape = function (kind, o) {
+      o = o || {};
+      var d = shapeRaw(kind, o), w = o.w || o.size || 100, hh = o.h || o.size || 100;
+      var bx = o.box == null ? null : Array.isArray(o.box) ? o.box : [o.box, o.box];
+      var tx = (o.x || 0) + (bx ? (bx[0] - w) / 2 : 0), ty = (o.y || 0) + (bx ? (bx[1] - hh) / 2 : 0);
+      var P = global.MorphSVGPlugin || global.MotionPathPlugin;
+      if (!(tx || ty) || !P || !P.stringToRawPath) return d;
+      var raw = P.stringToRawPath(d);
+      raw.forEach(function (seg) { for (var k = 0; k < seg.length - 1; k += 2) { seg[k] += tx; seg[k + 1] += ty; } });
+      return P.rawPathToString(raw);
+    };
+    function shapeRaw(kind, o) {
+      var w = o.w || o.size || 100, hh = o.h || o.size || 100, cx = w / 2, cy = hh / 2, R = Math.min(w, hh) / 2, i, list = [];
+      function poly(n, rf, rot) { var out = []; for (var k = 0; k < n; k++) { var a = (rot || -Math.PI / 2) + k * TAU / n, r = rf(k); out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } return out; }
+      switch (kind) {
+        case 'circle': return 'M' + (cx + R) + ' ' + cy + ' A' + R + ' ' + R + ' 0 1 1 ' + (cx - R) + ' ' + cy + ' A' + R + ' ' + R + ' 0 1 1 ' + (cx + R) + ' ' + cy + ' Z';
+        case 'rect': {
+          var r = Math.min(o.r == null ? 0 : o.r, w / 2, hh / 2);
+          return 'M' + r + ' 0 H' + (w - r) + (r ? ' A' + r + ' ' + r + ' 0 0 1 ' + w + ' ' + r : '') + ' V' + (hh - r) + (r ? ' A' + r + ' ' + r + ' 0 0 1 ' + (w - r) + ' ' + hh : '') + ' H' + r + (r ? ' A' + r + ' ' + r + ' 0 0 1 0 ' + (hh - r) : '') + ' V' + r + (r ? ' A' + r + ' ' + r + ' 0 0 1 ' + r + ' 0' : '') + ' Z';
+        }
+        case 'squircle': { var N = 64; for (i = 0; i < N; i++) { var a = i / N * TAU, c = Math.cos(a), s = Math.sin(a); list.push([cx + Math.sign(c) * Math.pow(Math.abs(c), 0.5) * w / 2, cy + Math.sign(s) * Math.pow(Math.abs(s), 0.5) * hh / 2]); } return smoothClosed(list); }
+        case 'polygon': return pts2d(poly(o.n || 6, function () { return R; }), true);
+        case 'star': { var inner = o.inner || 0.46; return pts2d(poly((o.n || 5) * 2, function (k) { return k % 2 ? R * inner : R; }), true); }
+        case 'heart': return 'M' + cx + ' ' + (hh * 0.92) + ' C' + (w * 0.18) + ' ' + (hh * 0.68) + ' ' + (w * -0.02) + ' ' + (hh * 0.42) + ' ' + (w * 0.08) + ' ' + (hh * 0.22) + ' C' + (w * 0.2) + ' ' + (hh * 0.02) + ' ' + (w * 0.44) + ' ' + (hh * 0.06) + ' ' + cx + ' ' + (hh * 0.26) + ' C' + (w * 0.56) + ' ' + (hh * 0.06) + ' ' + (w * 0.8) + ' ' + (hh * 0.02) + ' ' + (w * 0.92) + ' ' + (hh * 0.22) + ' C' + (w * 1.02) + ' ' + (hh * 0.42) + ' ' + (w * 0.82) + ' ' + (hh * 0.68) + ' ' + cx + ' ' + (hh * 0.92) + ' Z';
+        case 'blob': { var rr = rng(o.seed || 3), n = o.n || 7, wob = o.wobble == null ? 0.22 : o.wobble, rad = []; for (i = 0; i < n; i++) rad.push(R * (1 - wob + rr() * wob * 1.6) * 0.92); return smoothClosed(poly(n, function (k) { return rad[k]; })); }
+        case 'drop': return 'M' + cx + ' ' + (hh * 0.02) + ' C' + (w * 0.62) + ' ' + (hh * 0.22) + ' ' + (w * 0.88) + ' ' + (hh * 0.46) + ' ' + (w * 0.88) + ' ' + (hh * 0.64) + ' A' + (w * 0.38) + ' ' + (w * 0.38) + ' 0 1 1 ' + (w * 0.12) + ' ' + (hh * 0.64) + ' C' + (w * 0.12) + ' ' + (hh * 0.46) + ' ' + (w * 0.38) + ' ' + (hh * 0.22) + ' ' + cx + ' ' + (hh * 0.02) + ' Z';
+        case 'arrow': return 'M' + (w * 0.1) + ' ' + cy + ' H' + (w * 0.88) + ' M' + (w * 0.6) + ' ' + (hh * 0.24) + ' L' + (w * 0.9) + ' ' + cy + ' L' + (w * 0.6) + ' ' + (hh * 0.76);
+        case 'plus': return 'M' + cx + ' ' + (hh * 0.12) + ' V' + (hh * 0.88) + ' M' + (w * 0.12) + ' ' + cy + ' H' + (w * 0.88);
+        case 'check': return 'M' + (w * 0.16) + ' ' + (hh * 0.54) + ' L' + (w * 0.4) + ' ' + (hh * 0.76) + ' L' + (w * 0.86) + ' ' + (hh * 0.26);
+        default: fail('shape: unknown kind "' + kind + '"'); return shapeRaw('circle', o);
+      }
+    }
+    /**
+     * morphPath(path, shapes, { duration, hold, ease, type }, at) — the same outline becomes another shape (or several, one after another).
+     * shapes: path data, a shape() result, a selector of another <path>, or an array of them.
+     */
+    M.morphPath = function (target, shapes, o, at) {
+      if (typeof o !== 'object' || o === null) { at = o; o = {}; }
+      if (!global.MorphSVGPlugin) { fail('morphPath needs MorphSVGPlugin (run npm install in the skill folder)'); return null; }
+      var el = one(target, stage), list = Array.isArray(shapes) ? shapes : [shapes], t0 = tok(at) || 0, d = o.duration || 0.9, hold = o.hold == null ? 0.5 : o.hold, sub = gsap.timeline();
+      if (el && el.tagName.toLowerCase() !== 'path') { var conv = global.MorphSVGPlugin.convertToPath(el); el = conv && conv[0]; }
+      if (!el) { fail('morphPath: no path ' + target); return null; }
+      // default: closed outlines are resampled to the same number of points, turned the same way and lined up at the start that
+      // travels least, then blended — no crumpled or lopsided in-betweens. type 'linear' / 'rotational' uses MorphSVG as is.
+      var dataOf = function (s) { var e = typeof s === 'string' && /^[#.\[]/.test(s) ? one(s, stage) : s; return typeof e === 'string' ? e : e && e.getAttribute && e.tagName.toLowerCase() === 'path' ? e.getAttribute('d') : null; };
+      var ds = [el.getAttribute('d')].concat(list.map(dataOf));
+      var outlines = !o.type || o.type === 'points' ? ds.map(outlinePoints) : null;
+      if (outlines && outlines.every(Boolean)) {
+        var segs = [];
+        for (var k = 1; k < outlines.length; k++) segs.push({ a: k === 1 ? outlines[0] : segs[k - 2].b, b: alignOutline(k === 1 ? outlines[0] : segs[k - 2].b, outlines[k]), from: ds[k - 1], to: ds[k], st: { p: 0 }, at: (k - 1) * (d + hold) });
+        segs.forEach(function (sg) { sub.fromTo(sg.st, { p: 0 }, { p: 1, duration: d, ease: o.ease || 'mo.inOut', immediateRender: false }, sg.at); });
+        var T0 = t0;
+        appliers.push(function (t) {
+          var cur = null; for (var i = 0; i < segs.length; i++) if (t >= T0 + segs[i].at - 1e-6) cur = segs[i];
+          if (!cur) return;
+          var p = cur.st.p, s;
+          if (p <= 0) s = cur.from; else if (p >= 1) s = cur.to;
+          else { var A = cur.a, B = cur.b, pts = new Array(A.length); for (var j = 0; j < A.length; j++) pts[j] = [A[j][0] + (B[j][0] - A[j][0]) * p, A[j][1] + (B[j][1] - A[j][1]) * p]; s = pts2d(pts, true); }
+          if (el._moD !== s) { el.setAttribute('d', s); el._moD = s; }
+        });
+        return tlAt(sub, t0);
+      }
+      list.forEach(function (s, i) {
+        var shape = typeof s === 'string' && /^[#.\[]/.test(s) ? one(s, stage) : s;
+        sub.to(el, { morphSVG: { shape: shape, type: o.type === 'rotational' ? 'rotational' : 'linear', map: o.map || 'size' }, duration: d, ease: o.ease || 'mo.inOut' }, i * (d + hold));
+      });
+      return tlAt(sub, t0);
+    };
+    // a closed single outline → 180 points evenly spaced along it, clockwise (null for open or multi-part paths)
+    var outlineHost = null;
+    function outlinePoints(dstr) {
+      if (!dstr || (String(dstr).match(/[Mm]/g) || []).length !== 1 || !/[Zz]\s*$/.test(String(dstr).trim())) return null;
+      if (!outlineHost) { outlineHost = doc.createElementNS('http://www.w3.org/2000/svg', 'svg'); outlineHost.setAttribute('data-mo-ignore', ''); outlineHost.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden'; stage.appendChild(outlineHost); }
+      var p = doc.createElementNS(outlineHost.namespaceURI, 'path'); p.setAttribute('d', dstr); outlineHost.appendChild(p);
+      var N = 180, L = p.getTotalLength(), pts = [];
+      if (!(L > 0)) { outlineHost.removeChild(p); return null; }
+      for (var i = 0; i < N; i++) { var q = p.getPointAtLength(L * i / N); pts.push([q.x, q.y]); }
+      outlineHost.removeChild(p);
+      var area = 0; for (i = 0; i < N; i++) { var a = pts[i], b = pts[(i + 1) % N]; area += a[0] * b[1] - b[0] * a[1]; }
+      return area < 0 ? pts.reverse() : pts;
+    }
+    // rotate B's starting point so the blend from A travels the least
+    function alignOutline(A, B) {
+      var N = A.length, best = 0, bestCost = Infinity;
+      for (var k = 0; k < N; k += 2) { var c = 0; for (var i = 0; i < N; i += 3) { var b = B[(i + k) % N], dx = b[0] - A[i][0], dy = b[1] - A[i][1]; c += dx * dx + dy * dy; } if (c < bestCost) { bestCost = c; best = k; } }
+      var out = new Array(N); for (var j = 0; j < N; j++) out[j] = B[(j + best) % N]; return out;
+    }
+
+    // ── effects ──
+    /** leak({ color, color2, duration, intensity, from }, at) — a warm light leak washing across the frame (accent moments, film feel). */
+    M.leak = function (a1, a2) {
+      var fx = flex(a1, a2), o = fx.o, at = tok(fx.at) || 0, d = o.duration || 1.3;
+      var el = h('div', 'mo-leak', stage); el.setAttribute('data-mo-ignore', '');
+      var c1 = o.color || (LIGHT ? '#FFB36B' : '#FF7A2E'), c2 = o.color2 || (LIGHT ? '#FFD9A8' : '#FFC46B'), c3 = o.color3 || (LIGHT ? '#FF9AA8' : '#FF3D6E');
+      el.style.background = 'radial-gradient(42% 62% at 28% 42%, ' + c1 + ' 0%, transparent 70%), radial-gradient(36% 52% at 66% 58%, ' + c2 + ' 0%, transparent 72%), radial-gradient(26% 40% at 48% 26%, ' + c3 + ' 0%, transparent 70%)';
+      el.style.mixBlendMode = LIGHT ? 'multiply' : 'screen';
+      sceneRec(el).w = [[snap(at), snap(at + d)]];
+      var dir = o.from === 'right' ? -1 : 1, peak = o.intensity == null ? (LIGHT ? 0.55 : 0.9) : o.intensity, sub = gsap.timeline();
+      sub.fromTo(el, { xPercent: -38 * dir, scale: 1.05, opacity: 0 }, { xPercent: 38 * dir, scale: 1.22, duration: d, ease: 'sine.inOut' }, 0)
+        .to(el, { opacity: peak, duration: d * 0.38, ease: 'sine.out' }, 0).to(el, { opacity: 0, duration: d * 0.62, ease: 'sine.in' }, d * 0.38);
+      var r = tlAt(sub, at); if (o.sfx) M.sfx(o.sfx === true ? 'swell' : o.sfx, at); return r;
+    };
+    /** flash({ color, duration, peak }, at) — a flash frame (beat cuts, impacts). */
+    M.flash = function (a1, a2) {
+      var fx = flex(a1, a2), o = fx.o, at = tok(fx.at) || 0, d = o.duration || 0.4;
+      var el = h('div', 'mo-flash', stage); el.setAttribute('data-mo-ignore', '');
+      el.style.background = o.color ? (ACCENTS[o.color] || o.color) : (LIGHT ? '#FFFFFF' : '#FFFFFF');
+      sceneRec(el).w = [[snap(at), snap(at + d)]];
+      var sub = gsap.timeline();
+      sub.fromTo(el, { opacity: 0 }, { opacity: o.peak || 0.9, duration: Math.min(0.06, d * 0.2), ease: 'power2.out', immediateRender: false }, 0).to(el, { opacity: 0, duration: d * 0.8, ease: 'power2.out' }, Math.min(0.06, d * 0.2));
+      var r = tlAt(sub, at); if (o.sfx) M.sfx(o.sfx === true ? 'impact' : o.sfx, at); return r;
+    };
+    /** rays({ parent, count, color, alpha, period, x, y }) — slowly turning starburst rays behind a reveal or a celebration. */
+    M.rays = function (o) {
+      o = o || {};
+      var parent = one(o.parent, stage) || one('.mo-bg', stage) || stage, el = h('div', 'mo-rays', parent), n = o.count || 18, step = 360 / n;
+      var x = o.x == null ? '50%' : o.x, y = o.y == null ? '50%' : o.y, col = o.color ? (ACCENTS[o.color] || o.color) : 'rgba(var(--tint), ' + (o.alpha == null ? 0.07 : o.alpha) + ')';
+      el.style.background = 'repeating-conic-gradient(from 0deg at ' + x + ' ' + y + ', ' + col + ' 0deg ' + (step * 0.42).toFixed(2) + 'deg, transparent ' + (step * 0.42).toFixed(2) + 'deg ' + step.toFixed(2) + 'deg)';
+      el.style.webkitMaskImage = el.style.maskImage = 'radial-gradient(circle at ' + x + ' ' + y + ', #000 0%, rgba(0,0,0,.6) 32%, transparent 68%)';
+      el.style.transformOrigin = x + ' ' + y;
+      appliers.push(function (t) { el.style.rotate = ((t / (o.period || 40)) * 360 % 360).toFixed(3) + 'deg'; });
+      return el;
+    };
+
+    // ── charts ──
+    function numFmt(v, dec, sep) { var s = (+v).toFixed(dec || 0); if (sep === false) return s; var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return p.join('.'); }
+    /**
+     * chart(target, { type: 'column' | 'bar' | 'line' | 'area' | 'donut', data, labels, highlight, max, unit, decimals, duration, stagger, values }, at)
+     * Draws a clean, animated chart into an empty sized box. The highlighted item (default: the largest) takes the accent; the rest stay neutral.
+     */
+    M.chart = function (target, s, at) {
+      var box = one(target, stage); if (!box) { fail('chart: no element ' + target); return gsap.timeline(); }
+      s = s || {};
+      var type = s.type || 'column', data = (s.data || []).map(Number), n = data.length, labels = s.labels || [], dec = s.decimals || 0, unit = s.unit || '';
+      var maxV = s.max || Math.max.apply(null, data.concat([0])) * 1.08 || 1, hi = s.highlight == null ? data.indexOf(Math.max.apply(null, data)) : s.highlight;
+      var d = s.duration || 1.1, stg = s.stagger == null ? Math.min(0.09, 0.6 / Math.max(1, n)) : s.stagger, sub = gsap.timeline(), showVals = s.values !== false;
+      box.classList.add('mo-chart', 'mo-chart-' + type); box.innerHTML = '';
+      var r = M.rect(box), bw = r.w, bh = r.h;
+      function counter(el, v, t, u2, d2) { var st = { v: 0 }, uu = u2 == null ? null : u2, dd = d2 == null ? null : d2; sub.to(st, { v: v, duration: d, ease: 'power3.out' }, t); appliers.push(function () { var x = numFmt(st.v, dd == null ? dec : dd) + (uu == null ? unit : uu); if (el._s !== x) { el.textContent = x; el._s = x; } }); el.textContent = numFmt(0, dd == null ? dec : dd) + (uu == null ? unit : uu); }
+      if (type === 'column' || type === 'bar') {
+        var horiz = type === 'bar';
+        data.forEach(function (v, i) {
+          var item = h('div', 'mo-chart-item' + (i === hi ? ' hi' : ''), box);
+          var val = showVals ? h('div', 'mo-chart-val', item) : null, track = h('div', 'mo-chart-track', item), bar = h('div', 'mo-chart-fill', track), lab = h('div', 'mo-chart-lab', item);
+          lab.textContent = labels[i] == null ? '' : labels[i];
+          if (horiz) { bar.style.width = (v / maxV * 100).toFixed(2) + '%'; } else bar.style.height = (v / maxV * 100).toFixed(2) + '%';
+          sub.fromTo(bar, horiz ? { scaleX: 0 } : { scaleY: 0 }, horiz ? { scaleX: 1, duration: d, ease: 'mo.out' } : { scaleY: 1, duration: d, ease: 'mo.out' }, i * stg);
+          if (val) { counter(val, v, i * stg); sub.from(val, { autoAlpha: 0, y: horiz ? 0 : U * 1.2, x: horiz ? -U : 0, duration: 0.5, ease: 'mo.out' }, i * stg + d * 0.25); }
+          sub.from(lab, { autoAlpha: 0, duration: 0.5, ease: 'mo.soft' }, i * stg * 0.6);
+        });
+        if (!horiz && n) {                                                   // baseline exactly under the bars, drawn in from the left
+          var tr0 = M.rect(box.querySelector('.mo-chart-track')), br0 = M.rect(box), base = h('div', 'mo-chart-base', box);
+          base.style.top = (tr0.y + tr0.h - br0.y).toFixed(2) + 'px';
+          sub.fromTo(base, { scaleX: 0 }, { scaleX: 1, duration: d * 0.7, ease: 'mo.out' }, 0);
+        }
+      } else if (type === 'line' || type === 'area') {
+        var pad = { l: bw * 0.02, r: bw * 0.06, t: bh * 0.16, b: bh * 0.16 }, gw = bw - pad.l - pad.r, gh = bh - pad.t - pad.b;
+        var svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 ' + bw + ' ' + bh); svg.setAttribute('class', 'mo-chart-svg'); box.appendChild(svg);
+        var P = data.map(function (v, i) { return [pad.l + (n > 1 ? i / (n - 1) : 0.5) * gw, pad.t + gh - v / maxV * gh]; });
+        for (var g = 0; g <= 3; g++) { var gl = doc.createElementNS(svg.namespaceURI, 'line'); gl.setAttribute('x1', pad.l); gl.setAttribute('x2', pad.l + gw); gl.setAttribute('y1', pad.t + gh * g / 3); gl.setAttribute('y2', pad.t + gh * g / 3); gl.setAttribute('class', 'mo-chart-grid'); svg.appendChild(gl); }
+        var dPath = 'M' + P.map(function (p) { return p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' L');
+        if (n > 2) { dPath = 'M' + P[0][0].toFixed(1) + ' ' + P[0][1].toFixed(1); for (var q = 0; q < n - 1; q++) { var p0 = P[Math.max(0, q - 1)], p1 = P[q], p2 = P[q + 1], p3 = P[Math.min(n - 1, q + 2)]; dPath += ' C' + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + ' ' + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + ' ' + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) + ' ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1); } }
+        if (type === 'area') {
+          var gid = 'mo-ag' + Math.floor(rng(dPath)() * 1e9), defs = doc.createElementNS(svg.namespaceURI, 'defs');
+          defs.innerHTML = '<linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".32"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>';
+          svg.appendChild(defs);
+          var area = doc.createElementNS(svg.namespaceURI, 'path'); area.setAttribute('d', dPath + ' L' + P[n - 1][0].toFixed(1) + ' ' + (pad.t + gh) + ' L' + P[0][0].toFixed(1) + ' ' + (pad.t + gh) + ' Z'); area.setAttribute('fill', 'url(#' + gid + ')'); area.setAttribute('class', 'mo-chart-area'); svg.appendChild(area);
+          sub.fromTo(area, { opacity: 0 }, { opacity: 1, duration: d * 0.8, ease: 'mo.soft' }, d * 0.5);
+        }
+        var line = doc.createElementNS(svg.namespaceURI, 'path'); line.setAttribute('d', dPath); line.setAttribute('class', 'mo-chart-line'); line.setAttribute('pathLength', '1'); svg.appendChild(line);
+        sub.fromTo(line, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: d * 1.3, ease: 'mo.inOut' }, 0);
+        P.forEach(function (p, i) {
+          var c = doc.createElementNS(svg.namespaceURI, 'circle'); c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', i === hi ? U * 0.9 : U * 0.5); c.setAttribute('class', 'mo-chart-dot' + (i === hi ? ' hi' : '')); svg.appendChild(c);
+          sub.from(c, { scale: 0, transformOrigin: '50% 50%', duration: 0.5, ease: 'mo.pop' }, d * 1.3 * (n > 1 ? i / (n - 1) : 1) * 0.92);
+          var lab = h('div', 'mo-chart-xlab', box); lab.textContent = labels[i] == null ? '' : labels[i]; lab.style.left = (p[0] / bw * 100).toFixed(2) + '%';
+          sub.from(lab, { autoAlpha: 0, duration: 0.4 }, i * stg * 0.6);
+        });
+        if (showVals && hi >= 0 && hi < n) { var tag = h('div', 'mo-chart-tag', box); tag.style.left = (P[hi][0] / bw * 100).toFixed(2) + '%'; tag.style.top = (P[hi][1] / bh * 100).toFixed(2) + '%'; counter(tag, data[hi], d * 0.6); sub.from(tag, { autoAlpha: 0, y: U, duration: 0.5, ease: 'mo.out' }, d * 1.15); }
+      } else if (type === 'donut' || type === 'pie') {
+        var total = data.reduce(function (a, b) { return a + b; }, 0) || 1, size = Math.min(bw, bh), rad = size * 0.4, sw = type === 'pie' ? rad : size * 0.085, R2 = type === 'pie' ? rad / 2 : rad, gap = n > 1 ? 0.006 : 0;
+        var svg2 = doc.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg2.setAttribute('viewBox', (-size / 2) + ' ' + (-size / 2) + ' ' + size + ' ' + size); svg2.setAttribute('class', 'mo-chart-svg'); box.appendChild(svg2);
+        var track2 = doc.createElementNS(svg2.namespaceURI, 'circle'); track2.setAttribute('r', R2); track2.setAttribute('class', 'mo-chart-ring'); track2.setAttribute('stroke-width', sw); svg2.appendChild(track2);
+        var acc = 0;
+        data.forEach(function (v, i) {
+          var frac = v / total, seg = doc.createElementNS(svg2.namespaceURI, 'circle');
+          seg.setAttribute('r', R2); seg.setAttribute('pathLength', '1'); seg.setAttribute('stroke-width', sw); seg.setAttribute('class', 'mo-chart-seg' + (i === hi ? ' hi' : ''));
+          seg.style.strokeDasharray = Math.max(0, frac - gap).toFixed(4) + ' 1'; seg.style.rotate = (-90 + acc * 360).toFixed(3) + 'deg'; seg.style.opacity = (i === hi ? 1 : Math.max(0.16, 0.5 - i * 0.07)).toFixed(2);
+          svg2.appendChild(seg);
+          sub.fromTo(seg, { strokeDashoffset: Math.max(0, frac - gap) }, { strokeDashoffset: 0, duration: d * Math.max(0.35, frac * 1.6), ease: 'mo.inOut' }, d * acc * 0.9);
+          acc += frac;
+        });
+        // centre: the highlighted share in % (default) · 'value' · 'total' · a number (with unit) · false = none
+        if (s.center !== false) {
+          var mid = h('div', 'mo-chart-center', box), big = h('div', 'mo-chart-big', mid), cap = h('div', 'mo-chart-cap', mid), share = s.center == null || s.center === 'share';
+          var cv = share ? (hi >= 0 ? data[hi] / total * 100 : 100) : s.center === 'value' ? (hi >= 0 ? data[hi] : total) : s.center === 'total' ? total : +s.center;
+          counter(big, cv, d * 0.3, share ? '%' : unit, share ? 0 : dec);
+          cap.textContent = s.caption || (labels[hi] == null ? '' : labels[hi]);
+          sub.from(mid, { autoAlpha: 0, scale: 0.92, duration: 0.7, ease: 'mo.out' }, d * 0.25);
+        }
+      } else fail('chart: unknown type "' + type + '"');
+      // sound: { sfx: true } = a swish as it builds and a pop when the highlighted value lands
+      if (s.sfx) {
+        var T0 = tok(at) || 0;
+        M.sfx(typeof s.sfx === 'string' ? s.sfx : 'swish', { volume: 0.7 }, T0);
+        if (hi >= 0 && hi < n) M.sfx('pop', { volume: 0.8 }, T0 + (type === 'column' || type === 'bar' ? hi * stg + d * 0.55 : d * 0.9));
+      }
+      return tlAt(sub, tok(at) || 0);
+    };
+
+    // ── ready-made blocks ──
+    /**
+     * callout(target, { text, side: 'right' | 'left' | 'top' | 'bottom', length, out, sfx }, at) — annotation:
+     * a dot on the element, a hairline drawn out, and a label. Lives in the element's parent so it moves with it.
+     */
+    M.callout = function (target, o, at) {
+      if (typeof o === 'string') o = { text: o };
+      o = o || {};
+      var el = one(target, stage); if (!el) return gsap.timeline();
+      // parent: where the label lives — pick an ancestor that does not clip (a device screen clips its content)
+      var parent = (o.parent && one(o.parent, stage)) || el.offsetParent || stage, r = M.rect(el), pr = parent === stage ? { x: 0, y: 0 } : M.rect(parent), side = o.side || 'right', len = o.length || U * 9;
+      var g = h('div', 'mo-callout ' + side, parent), dot = h('i', 'mo-callout-dot', g), ln = h('i', 'mo-callout-line', g), lab = h('div', 'mo-callout-label', g);
+      lab.innerHTML = o.text || '';
+      var ax = side === 'right' ? r.x + r.w : side === 'left' ? r.x : r.cx, ay = side === 'top' ? r.y : side === 'bottom' ? r.y + r.h : r.cy;
+      g.style.left = (ax - pr.x) + 'px'; g.style.top = (ay - pr.y) + 'px'; g.style.setProperty('--len', len + 'px');
+      var t0 = tok(at) || 0, sub = gsap.timeline(), horiz = side === 'right' || side === 'left';
+      sub.from(dot, { scale: 0, duration: 0.45, ease: 'mo.pop' }, 0)
+        .from(ln, Object.assign(horiz ? { scaleX: 0 } : { scaleY: 0 }, { duration: 0.55, ease: 'mo.out' }), 0.12)
+        .from(lab, { autoAlpha: 0, x: horiz ? (side === 'right' ? -U : U) : 0, y: horiz ? 0 : (side === 'bottom' ? -U : U), duration: 0.6, ease: 'mo.out' }, 0.38);
+      if (o.out != null) sub.to(g, { autoAlpha: 0, duration: 0.35, ease: 'mo.in' }, (tok(o.out) || 0) - t0);
+      if (o.sfx) M.sfx(o.sfx === true ? 'tick' : o.sfx, t0);
+      return tlAt(sub, t0);
+    };
+    /** lowerThird({ name, title, side, out, parent, sfx }, at) — a name strap for a speaker, a place or a source (HUD layer). */
+    M.lowerThird = function (o, at) {
+      o = o || {};
+      var parent = one(o.parent, stage) || one('.mo-hud', stage) || stage, g = h('div', 'mo-lt ' + (o.side || 'left'), parent);
+      var bar = h('i', 'mo-lt-bar', g), body = h('div', 'mo-lt-body', g), nmBox = h('div', 'mo-lt-name', body), nm = h('span', '', nmBox), ti = h('div', 'mo-lt-title', body);
+      nm.textContent = o.name || ''; nm.style.display = 'inline-block'; ti.textContent = o.title || '';
+      var t0 = tok(at) || 0, sub = gsap.timeline();
+      sceneRec(g).w = [[snap(t0), o.out == null ? Infinity : snap((tok(o.out) || 0) + 0.6)]];
+      sub.from(bar, { scaleY: 0, duration: 0.5, ease: 'mo.out' }, 0)
+        .from(nm, { yPercent: 110, duration: 0.7, ease: 'mo.out' }, 0.12)
+        .from(ti, { autoAlpha: 0, y: U * 1.2, duration: 0.6, ease: 'mo.out' }, 0.3);
+      if (o.out != null) { var t1 = (tok(o.out) || 0) - t0; sub.to(body, { autoAlpha: 0, x: -U * 2, duration: 0.35, ease: 'mo.in' }, t1).to(bar, { scaleY: 0, duration: 0.35, ease: 'mo.in' }, t1 + 0.1); }
+      if (o.sfx) M.sfx(o.sfx === true ? 'swipe' : o.sfx, t0);
+      return tlAt(sub, t0);
+    };
+
+    // ── adapters: drive any other animation runtime from the master clock ──
+    /** adapter({ ready, seek(t, frame) }) — plug in another runtime; seek must draw the exact frame for time t. */
+    M.adapter = function (a) { if (a.ready) M.wait(a.ready); if (a.seek) appliers.push(function (t, f) { a.seek(t, f); }); return M; };
+    /** lottie(target, { src, speed, loop, from, to }, at) — a Lottie animation (JSON from After Effects / LottieFiles), frame-accurate. */
+    M.lottie = function (target, o, at) {
+      if (typeof o === 'string') o = { src: o };
+      o = o || {};
+      var el = one(target, stage), L = global.lottie || global.bodymovin;
+      if (!L) { fail('lottie: the Lottie player did not load (run npm install in the skill folder)'); return M; }
+      if (!el) { fail('lottie: no element ' + target); return M; }
+      var anim = L.loadAnimation({ container: el, renderer: 'svg', loop: false, autoplay: false, path: o.src, rendererSettings: { preserveAspectRatio: o.fit || 'xMidYMid meet', progressiveLoad: false } });
+      var t0 = tok(at) || 0, speed = o.speed || 1;
+      M.wait(new Promise(function (res) { anim.addEventListener('DOMLoaded', res); anim.addEventListener('data_failed', function () { fail('lottie: could not load ' + o.src); res(); }); setTimeout(res, 15000); }));
+      appliers.push(function (t) {
+        var total = anim.totalFrames || 0; if (!total) return;
+        var a = o.from || 0, b = o.to == null ? total - 1 : o.to, span = Math.max(1, b - a), f = (t - t0) * speed * (anim.frameRate || 30);
+        f = o.loop ? a + ((f % span) + span) % span : a + clamp(f, 0, span);
+        if (anim._moF !== f) { anim.goToAndStop(f, true); anim._moF = f; }
+      });
+      el._moLottie = anim;
+      return M;
+    };
+    /**
+     * three(target, (THREE, ctx) => (t, frame) => {…}) — a real 3D scene on a canvas.
+     * ctx = { scene, camera, renderer, width, height, THREE }. Return a function that poses the scene for time t; it is rendered after every call.
+     */
+    M.three = function (target, setup) {
+      var THREE = Motion.THREE;
+      if (!THREE) { fail('three: the 3D runtime did not load (run npm install in the skill folder; mention M.three in the composition)'); return M; }
+      var el = one(target, stage); if (!el) { fail('three: no element ' + target); return M; }
+      var canvas = el.tagName === 'CANVAS' ? el : h('canvas', 'mo-three', el), r = M.rect(el), w = Math.max(2, Math.round(r.w)), hh = Math.max(2, Math.round(r.h));
+      if (canvas !== el) { canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.display = 'block'; }
+      var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+      renderer.setSize(w, hh, false);
+      if (THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+      var scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(35, w / hh, 0.1, 2000); camera.position.set(0, 0, 10);
+      var ctx = { scene: scene, camera: camera, renderer: renderer, width: w, height: hh, THREE: THREE, M: M };
+      var pose = null;
+      M.wait(Promise.resolve().then(function () { return setup(THREE, ctx); }).then(function (fn) { pose = typeof fn === 'function' ? fn : null; }));
+      var ratio = 0;
+      (M._three = M._three || []).push({ canvas: canvas, scene: scene, ctx: ctx });
+      appliers.push(function (t, f) {
+        // a hidden canvas costs nothing: the scene is posed and drawn only while it can be seen (pose is a pure function of t)
+        if (canvas.checkVisibility && !canvas.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return;
+        var z = parseFloat(doc.documentElement.style.zoom) || 1, pr = (global.devicePixelRatio || 1) * z;
+        if (pr !== ratio) { renderer.setPixelRatio(pr); renderer.setSize(w, hh, false); ratio = pr; }
+        if (pose) pose(t, f);
+        renderer.render(scene, ctx.camera);
+      });
+      return M;
+    };
+    // screen positions (client px) of the bounding-box corners of everything drawn in a 3D scene — how far the 3D moved between two times
+    function threeCorners(rec) {
+      var THREE = Motion.THREE, out = [], cam = rec.ctx.camera, cr = rec.canvas.getBoundingClientRect(), v = new THREE.Vector3();
+      rec.scene.updateMatrixWorld(); cam.updateMatrixWorld();
+      rec.scene.traverse(function (o) {
+        if (!o.visible || !o.geometry || out.length > 4000) return;
+        var g = o.geometry; if (!g.boundingBox) g.computeBoundingBox(); var b = g.boundingBox; if (!b || !isFinite(b.min.x)) return;
+        for (var c = 0; c < 8; c++) {
+          v.set(c & 1 ? b.max.x : b.min.x, c & 2 ? b.max.y : b.min.y, c & 4 ? b.max.z : b.min.z).applyMatrix4(o.matrixWorld).project(cam);
+          out.push(v.z > 1 || v.z < -1 ? null : [cr.left + (v.x + 1) / 2 * cr.width, cr.top + (1 - v.y) / 2 * cr.height]);
+        }
+      });
+      return out;
+    }
+    M._threeMotion = function (before) {
+      var vis = { opacityProperty: true, visibilityProperty: true }, live = (M._three || []).filter(function (r) { return !r.canvas.checkVisibility || r.canvas.checkVisibility(vis); });
+      if (!before) return live.map(function (r) { return { rec: r, pts: threeCorners(r) }; });
+      var max = 0;
+      before.forEach(function (s) {
+        var pts = threeCorners(s.rec), cr = s.rec.canvas.getBoundingClientRect(), cap = Math.max(cr.width, cr.height) * 0.5;
+        for (var i = 0; i < Math.min(pts.length, s.pts.length); i++) {
+          var p = s.pts[i], q = pts[i]; if (!p || !q) continue;
+          var inside = function (x) { return x[0] > cr.left && x[0] < cr.right && x[1] > cr.top && x[1] < cr.bottom; };
+          if (!inside(p) && !inside(q)) continue;
+          max = Math.max(max, Math.min(cap, Math.max(Math.abs(q[0] - p[0]), Math.abs(q[1] - p[1]))));
+        }
+      });
+      return max;
+    };
+
+    // ── declarative markup: simple timing straight from data-* attributes (JS stays for the choreography) ──
+    function words(v) { return String(v == null ? '' : v).trim().split(/\s+/).filter(Boolean); }
+    function optsOf(list) {
+      var o = {};
+      list.forEach(function (t) {
+        var i = t.indexOf('='); if (i < 0) { o[t] = true; return; }
+        var k = t.slice(0, i), v = t.slice(i + 1); k = { dur: 'duration', d: 'duration', vol: 'volume' }[k] || k;
+        if (/^-?\d+(?:\.\d+)?$/.test(v)) v = +v; else if (/^-?\d+(?:\.\d+)?u$/.test(v)) v = parseFloat(v) * U; else if (v === 'true') v = true; else if (v === 'false') v = false;
+        o[k] = v;
+      });
+      return o;
+    }
+    function isTime(w) { return /^(?:-?\d+(?:\.\d+)?s?|b-?\d+(?:\.\d+)?)$/i.test(w); }
+    /** "type time key=val flag" → { name, at, o } */
+    function spec(v, names) {
+      var name = null, at = null, rest = [];
+      words(v).forEach(function (w) { if (at == null && isTime(w)) at = tok(w); else if (name == null && names && names.indexOf(w) >= 0) name = w; else rest.push(w); });
+      return { name: name, at: at, o: optsOf(rest) };
+    }
+    /**
+     * declare(root) — runs once before Motion.compose's callback. Attributes:
+     *   data-show="0.4-3.2, 5-8"   data-reveal="rise 0.3 dur=0.9 sfx"   data-exit="fade 4.2"   data-count="62>96 1.0 dur=2.4 pulse"
+     *   data-type="3.8 dur=1.3 sfx"   data-highlight="1.4"   data-pulse="2.5"   data-press="3.1"   data-draw="0.5"
+     *   data-float="y=0.8u period=5"   data-spin="period=8"   data-sfx="whoosh 1.2 vol=0.6, impact b8"
+     *   data-captions="voice.srt karaoke"   data-lottie="anim.json 1.0 loop"   <audio src="bgm.mp3" data-start="0" data-volume="0.8">
+     * Times accept seconds or beats (b8).
+     */
+    M.declare = function (root) {
+      root = root || stage;
+      toArray('audio[src]', doc).forEach(function (el) {
+        if (el._moTrack) return;
+        var d = el.dataset;
+        M.audio(el.getAttribute('src'), { at: d.start, from: d.from, end: d.end, volume: d.volume, fadeIn: d.fadeIn, fadeOut: d.fadeOut, role: d.role, duck: d.duck, loop: el.hasAttribute('loop') || d.loop != null, bpm: d.bpm });
+        el._moTrack = tracks[tracks.length - 1]; el.muted = true; el.preload = 'auto';
+      });
+      var R = Object.keys(REVEALS), X = Object.keys(EXITS);
+      toArray('[data-show]', root).forEach(function (el) {
+        M.scene(el, el.dataset.show.split(',').map(function (part) { var m = /^\s*([^~–]+?)\s*(?:[-~–]\s*(.*?))?\s*$/.exec(part) || []; return [tok(m[1]) || 0, m[2] ? tok(m[2]) : null]; }));
+      });
+      toArray('[data-reveal]', root).forEach(function (el) { var s = spec(el.dataset.reveal, R); s.o.type = s.name || 'fade'; M.reveal(el, s.o, s.at == null ? 0 : s.at); });
+      toArray('[data-exit]', root).forEach(function (el) { var s = spec(el.dataset.exit, X); s.o.type = s.name || 'fade'; M.exit(el, s.o, s.at == null ? 0 : s.at); });
+      toArray('[data-count]', root).forEach(function (el) {
+        var ws = words(el.dataset.count), v = ws.shift() || '0', m = /^(-?[\d.,]+)\s*(?:>|→|->)\s*(-?[\d.,]+)$/.exec(v), s = spec(ws.join(' '));
+        var from = m ? parseFloat(m[1].replace(/,/g, '')) : 0, to = parseFloat((m ? m[2] : v).replace(/,/g, '')), dec = ((m ? m[2] : v).split('.')[1] || '').length;
+        var o = s.o; o.from = from; o.to = to; if (o.decimals == null) o.decimals = dec;
+        M.count(el, o, s.at == null ? 0 : s.at);
+      });
+      toArray('[data-type]', root).forEach(function (el) { var s = spec(el.dataset.type); M.type(el, el.textContent.trim(), s.o, s.at == null ? 0 : s.at); });
+      toArray('[data-highlight]', root).forEach(function (el) { var s = spec(el.dataset.highlight); M.highlight(el, s.o, s.at == null ? 0 : s.at); });
+      toArray('[data-pulse]', root).forEach(function (el) { var s = spec(el.dataset.pulse); M.pulse(el, s.o, s.at == null ? 0 : s.at); });
+      toArray('[data-press]', root).forEach(function (el) { var s = spec(el.dataset.press); M.press(el, s.o, s.at == null ? 0 : s.at); });
+      toArray('[data-draw]', root).forEach(function (el) { var s = spec(el.dataset.draw); s.o.type = 'draw'; M.reveal(el, s.o, s.at == null ? 0 : s.at); });
+      toArray('[data-float]', root).forEach(function (el) { M.float(el, optsOf(words(el.dataset.float))); });
+      toArray('[data-spin]', root).forEach(function (el) { M.spin(el, optsOf(words(el.dataset.spin))); });
+      toArray('[data-sfx]', root).forEach(function (el) {
+        el.dataset.sfx.split(',').forEach(function (part) { var ws = words(part), name = ws.shift(); if (!name) return; var s = spec(ws.join(' ')); M.sfx(name, s.o, s.at == null ? 0 : s.at); });
+      });
+      toArray('[data-captions]', root).forEach(function (el) { var ws = words(el.dataset.captions), src = ws.shift(), s = spec(ws.join(' '), ['karaoke', 'pop', 'box', 'line']); if (s.name) s.o.style = s.name; if (s.at != null) s.o.offset = s.at; M.captions(el, src, s.o); });
+      toArray('[data-lottie]', root).forEach(function (el) { var ws = words(el.dataset.lottie), src = ws.shift(), s = spec(ws.join(' ')); s.o.src = src; M.lottie(el, s.o, s.at == null ? 0 : s.at); });
+      return M;
+    };
+
+    // ── template variables (props) ──
+    M.varDefs = Motion._varDefs || {};
+    M._events = function () {
+      return {
+        scenes: scenes.map(function (s) { return { id: s.el.id || '', cls: String(s.el.className && s.el.className.baseVal != null ? s.el.className.baseVal : s.el.className || '').split(' ')[0], w: s.w.map(function (w) { return [w[0], w[1] === Infinity ? null : w[1]]; }) }; }).filter(function (s) { return !/^mo-(leak|flash)$/.test(s.cls); }),
+        labels: tl.labels, sfx: effects.map(function (e) { return { name: e.name, at: e.at }; }),
+        beats: (function () { var m = M.music(); if (m && m.beats.length) return m.beats; if (stage.dataset.bpm) { var g = M.grid(), out = []; for (var i = 0; g(i) <= D && i < 2000; i++) out.push(g(i)); return out; } return []; })(),
+        captions: M._captions || []
+      };
+    };
+
+    // SVG filters used by warp / glitch transitions live in one hidden <svg> on the stage
+    var filterSeq = 0, filterHost = null;
+    function filterEl(id, inner) {
+      if (!filterHost) { filterHost = doc.createElementNS('http://www.w3.org/2000/svg', 'svg'); filterHost.setAttribute('class', 'mo-filters'); filterHost.setAttribute('width', '0'); filterHost.setAttribute('height', '0'); filterHost.setAttribute('data-mo-ignore', ''); filterHost.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden'; stage.appendChild(filterHost); }
+      var f = doc.createElementNS(filterHost.namespaceURI, 'filter');
+      f.setAttribute('id', id); f.setAttribute('x', '-10%'); f.setAttribute('y', '-10%'); f.setAttribute('width', '120%'); f.setAttribute('height', '120%'); f.setAttribute('color-interpolation-filters', 'sRGB');
+      f.innerHTML = inner; filterHost.appendChild(f); return f;
+    }
+
+    // sound hooks on the existing helpers: { sfx: true } picks a fitting effect, { sfx: 'name' } a specific one
+    (function () {
+      function st(r) { return r && r.startTime ? r.startTime() : null; }
+      function opt(o) { return (o && typeof o === 'object') ? o : {}; }
+      var rv = M.reveal; M.reveal = function (target, o, at) { var r = rv(target, o, at), oo = opt(o), n = sfxFor(oo, 'reveal', oo.type || 'fade'); if (n && st(r) != null) M.sfx(n, { volume: oo.sfxVolume }, st(r) + (oo.sfxAt || 0)); return r; };
+      var ex = M.exit; M.exit = function (target, o, at) { var r = ex(target, o, at), oo = opt(o), n = sfxFor(oo, 'exit'); if (n && st(r) != null) M.sfx(n, { volume: oo.sfxVolume == null ? 0.6 : oo.sfxVolume }, st(r)); return r; };
+      ['press', 'pulse', 'tap'].forEach(function (k) { var fn0 = M[k]; M[k] = function (target, a, b) { var f = flex(a, b), r = fn0(target, f.o, f.at), n = sfxFor(f.o, k); if (n && st(r) != null) M.sfx(n, { volume: f.o.sfxVolume }, st(r)); return r; }; });
+      var hl = M.highlight; M.highlight = function (target, o, at) { if (typeof o !== 'object' || o === null) { at = o; o = {}; } var r = hl(target, o, at), n = sfxFor(o, 'highlight'); if (n && st(r) != null) M.sfx(n, { volume: o.sfxVolume == null ? 0.7 : o.sfxVolume }, st(r)); return r; };
+      var cu = M.cursor; M.cursor = function (co) {
+        var api = cu(co), ck = api.click;
+        api.click = function (a1, a2) { var fx = flex(a1, a2), r = ck(fx.o, fx.at), n = sfxFor(fx.o, 'click'); if (n && st(r) != null) M.sfx(n, { volume: fx.o.sfxVolume }, st(r)); return r; };
+        /** drag(target, { duration, ease }, at) — press, travel on a flat arc while held, release. */
+        api.drag = function (target, opt2, at) {
+          if (typeof opt2 !== 'object' || opt2 === null) { at = opt2; opt2 = {}; }
+          var t0 = tok(at) || 0;
+          tw_to(api.state, { s: 0.86, duration: 0.08, ease: 'power2.out' }, t0);
+          var mv = api.moveTo(target, Object.assign({ bend: 0.04, ease: opt2.ease || 'mo.inOut' }, opt2), t0 + 0.1);
+          tw_to(api.state, { s: 1, duration: 0.35, ease: 'mo.spring' }, mv.endTime());
+          if (opt2.sfx) { M.sfx(opt2.sfx === true ? 'click' : opt2.sfx, { volume: 0.7 }, t0); M.sfx(opt2.sfx === true ? 'tap' : opt2.sfx, { volume: 0.5 }, mv.endTime()); }
+          return mv;
+        };
+        return api;
+      };
+      var tr = M.transition; M.transition = function (type, from, to, o) {
+        o = o || {};
+        var end = tr(type, from, to, o), n = sfxFor(o, 'transition', type);
+        if (n) { var a0 = snap(M.time(o.at)), dd = end - a0; M.sfx(n, { volume: o.sfxVolume }, /^(flash|glitch)$/.test(type) ? a0 + dd * 0.42 : type === 'whip' ? a0 + dd * 0.2 : a0); }
+        return end;
+      };
+    })();
     return M;
   }
 
@@ -1069,6 +1904,14 @@
       stamp: function (on) { if (!stamp) { stamp = doc.createElement('div'); stamp.id = 'mo-stamp'; stage.appendChild(stamp); } stamp.style.display = on ? 'block' : 'none'; },
       labels: tl.labels,
       inspect: function () { return inspect(M); },
+      /** sound the renderer mixes: tracks (music, voice) and effects, in composition time */
+      audioPlan: function () { return M._plan(); },
+      /** template variables with their schema and current values */
+      vars: function () { var out = [], defs = M.varDefs || {}; for (var k in defs) { var d = defs[k]; out.push({ name: d.name, type: d.type, default: d.default, value: M.vars[k] != null ? M.vars[k] : null, label: d.label || '', options: d.options || null, builtin: !!d.builtin }); } return out; },
+      loop: stage.hasAttribute('data-loop'),
+      /** scene windows, labels, effects, beats and caption cues (preview timeline, score) */
+      events: function () { return M._events(); },
+      cam: function () { var c = M.cam.s; return { used: !!M.cam._used, x: c.x, y: c.y, zoom: c.zoom, rx: c.rx, ry: c.ry, rz: c.rz }; },
       /**
        * Largest on-screen displacement (stage px) of any visible element between two times.
        * The renderer uses it to decide how many motion-blur sub-frames a frame deserves.
@@ -1085,7 +1928,9 @@
           a[i] = [r.left, r.top, r.right, r.bottom];
           if (el.tagName === 'CANVAS' || el.tagName === 'VIDEO') floor = 2.5;
         }
+        var three0 = M._three && M._three.length ? M._threeMotion() : null;
         seek(t1);
+        if (three0) max = Math.max(max, M._threeMotion(three0));
         for (i = 0; i < n; i++) {
           var p = a[i]; if (!p) continue;
           r = els[i].getBoundingClientRect();
@@ -1145,6 +1990,50 @@
     bar.innerHTML = '<button data-a="play" title="Space">▶</button><button data-a="loop" class="on" title="L">loop</button><button data-a="rate" title="속도">1×</button><button data-a="guides" title="G: 플랫폼 안전영역">safe</button><div class="bar"><i></i></div><div class="time"></div>';
     var fill = bar.querySelector('.bar > i'), time = bar.querySelector('.time'), track = bar.querySelector('.bar');
     Object.keys(M.tl.labels).forEach(function (k) { var b = h('b', '', track); b.style.left = (M.tl.labels[k] / D * 100) + '%'; b.title = k; });
+    var ev = M._events();
+    ev.beats.forEach(function (bt) { var k = h('u', '', track); k.style.left = (bt / D * 100) + '%'; });
+    ev.sfx.forEach(function (e) { var k = h('s', '', track); k.style.left = (e.at / D * 100) + '%'; k.title = e.name; });
+    // sound: tracks follow the playhead, effects fire as it passes them
+    var plan = M._plan(), soundOn = true, snd = { ctx: null, bufs: {}, els: [] }, hasSound = plan.tracks.length + plan.sfx.length > 0;
+    if (hasSound) { bar.insertBefore(h('button', 'on', null, '♪'), bar.querySelector('.bar')).dataset.a = 'sound'; plan.tracks.forEach(function (trk) { var au = new Audio(trk.src); au.preload = 'auto'; snd.els.push({ tr: trk, a: au }); }); }
+    function sfxUrl(name) { return /\.[a-z0-9]{2,4}$/i.test(name) ? name : BASE + 'sfx/' + name + '.wav'; }
+    function playSfx(e) {
+      if (!snd.ctx) { var AC = global.AudioContext || global.webkitAudioContext; if (!AC) return; snd.ctx = new AC(); }
+      var c = snd.ctx, url = sfxUrl(e.name);
+      (snd.bufs[url] || (snd.bufs[url] = fetch(url).then(function (r) { return r.arrayBuffer(); }).then(function (b) { return c.decodeAudioData(b); }).catch(function () { return null; }))).then(function (buf) {
+        if (!buf) return; var src = c.createBufferSource(), g = c.createGain(); src.buffer = buf; src.playbackRate.value = (e.pitch || 1) * rate; g.gain.value = e.volume == null ? 1 : e.volume; src.connect(g); g.connect(c.destination); src.start();
+      });
+    }
+    function syncSound(prev, now, jumped) {
+      if (!hasSound) return;
+      snd.els.forEach(function (x) {
+        var tr = x.tr, local = now - tr.at + tr.from, inside = soundOn && playing && now >= tr.at && (tr.end == null || now < tr.end);
+        if (!inside) { if (!x.a.paused) x.a.pause(); return; }
+        x.a.playbackRate = rate; x.a.volume = clamp(tr.volume, 0, 1);
+        if (jumped || x.a.paused || Math.abs(x.a.currentTime - local) > 0.25) { try { x.a.currentTime = Math.max(0, local); } catch (e) { /* not loaded yet */ } }
+        if (x.a.paused) x.a.play().catch(function () {});
+      });
+      if (soundOn && playing && !jumped && now > prev) plan.sfx.forEach(function (e) { if (e.at > prev && e.at <= now) playSfx(e); });
+    }
+    // template variables: edit and reload (the playhead stays where it was)
+    var vdefs = Object.keys(M.varDefs || {}).map(function (k) { return M.varDefs[k]; });
+    if (vdefs.length > 1 || (vdefs.length === 1 && !vdefs[0].builtin)) {
+      bar.insertBefore(h('button', '', null, 'vars'), bar.querySelector('.bar')).dataset.a = 'vars';
+      var panel = h('form', '', doc.body); panel.id = 'mo-vars';
+      vdefs.forEach(function (d) {
+        var row = h('label', '', panel), cur = M.vars[d.name] != null ? M.vars[d.name] : d.default;
+        h('span', '', row).textContent = d.label || d.name;
+        var inp = d.options ? h('select', '', row, d.options.map(function (x) { return '<option' + (String(x) === String(cur) ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('')) : h(d.type === 'text' && String(cur).length > 28 ? 'textarea' : 'input', '', row);
+        inp.name = d.name; if (!d.options) { inp.value = cur == null ? '' : cur; if (d.type === 'number') inp.type = 'number'; }
+      });
+      h('button', '', panel, '적용').type = 'submit';
+      panel.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var q = new URLSearchParams(location.search);
+        toArray('[name]', panel).forEach(function (inp) { var d = M.varDefs[inp.name]; if (d && String(inp.value) !== String(d.default)) q.set(inp.name, inp.value); else q.delete(inp.name); });
+        q.set('t', t.toFixed(3)); q.set('autoplay', '0'); location.search = q.toString();
+      });
+    }
     function fit() {
       var aw = innerWidth - 32, ah = innerHeight - 56 - 32, s = Math.min(aw / W, ah / H);
       stage.style.transform = 'translate(' + ((innerWidth - W * s) / 2).toFixed(1) + 'px,' + ((innerHeight - 56 - H * s) / 2).toFixed(1) + 'px) scale(' + s.toFixed(5) + ')';
@@ -1152,15 +2041,17 @@
     addEventListener('resize', fit); fit();
     var playing = false, loop = true, rate = 1, t = +(QS.get('t') || 0), last = 0, rates = [1, 0.5, 0.25, 2];
     function ui() { fill.style.width = (t / D * 100).toFixed(3) + '%'; time.textContent = t.toFixed(2) + ' / ' + D.toFixed(2) + 's · f' + Math.round(t * fps); bar.querySelector('[data-a=play]').textContent = playing ? '❚❚' : '▶'; }
-    function go(nt) { t = clamp(nt, 0, D); seek(t); ui(); }
-    function tick(now) { if (!playing) return; var dt = (now - last) / 1000; last = now; var nt = t + dt * rate; if (nt >= D) { if (loop) nt = 0; else { nt = D; playing = false; } } go(nt); requestAnimationFrame(tick); }
-    function toggle() { playing = !playing; if (playing) { if (t >= D) t = 0; last = performance.now(); requestAnimationFrame(tick); } ui(); }
+    function go(nt, jumped) { var prev = t; t = clamp(nt, 0, D); seek(t); ui(); syncSound(prev, t, jumped !== false); }
+    function tick(now) { if (!playing) return; var dt = (now - last) / 1000; last = now; var nt = t + dt * rate, wrap = false; if (nt >= D) { if (loop) { nt = 0; wrap = true; } else { nt = D; playing = false; } } go(nt, wrap); requestAnimationFrame(tick); }
+    function toggle() { playing = !playing; if (playing) { if (t >= D) t = 0; last = performance.now(); requestAnimationFrame(tick); } ui(); syncSound(t, t, true); }
     bar.addEventListener('click', function (e) {
       var a = e.target.dataset && e.target.dataset.a; if (!a) return;
       if (a === 'play') toggle();
       if (a === 'loop') { loop = !loop; e.target.classList.toggle('on', loop); }
       if (a === 'rate') { rate = rates[(rates.indexOf(rate) + 1) % rates.length]; e.target.textContent = rate + '×'; }
       if (a === 'guides') { guides.classList.toggle('on'); e.target.classList.toggle('on'); }
+      if (a === 'sound') { soundOn = !soundOn; e.target.classList.toggle('on', soundOn); syncSound(t, t, true); }
+      if (a === 'vars') { var pn = doc.getElementById('mo-vars'); if (pn) pn.classList.toggle('on'); e.target.classList.toggle('on'); }
     });
     var drag = false;
     function scrub(e) { var r = track.getBoundingClientRect(); go(clamp((e.clientX - r.left) / r.width, 0, 1) * D); }
@@ -1168,12 +2059,14 @@
     track.addEventListener('pointermove', function (e) { if (drag) scrub(e); });
     track.addEventListener('pointerup', function () { drag = false; });
     addEventListener('keydown', function (e) {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
       if (e.code === 'Space') { e.preventDefault(); toggle(); }
       else if (e.code === 'ArrowRight') { playing = false; go(t + (e.shiftKey ? 0.5 : 1 / fps)); }
       else if (e.code === 'ArrowLeft') { playing = false; go(t - (e.shiftKey ? 0.5 : 1 / fps)); }
       else if (e.code === 'Home') go(0); else if (e.code === 'End') go(D);
       else if (e.code === 'KeyL') bar.querySelector('[data-a=loop]').click();
       else if (e.code === 'KeyG') bar.querySelector('[data-a=guides]').click();
+      else if (e.code === 'KeyS' && bar.querySelector('[data-a=sound]')) bar.querySelector('[data-a=sound]').click();
     });
     go(t);
     if (QS.get('autoplay') !== '0' && !QS.has('t')) toggle();
@@ -1190,6 +2083,9 @@
     if (p.some(function (s) { return /calc/.test(s); })) return null;
     return { left: r.left + v(p[3], r.width), top: r.top + v(p[0], r.height), right: r.right - v(p[1], r.width), bottom: r.bottom - v(p[2], r.height) };
   }
+  // text inside one component (a card, a chart, a phone) reads as one unit
+  var GROUP_SEL = '.mo-card,.mo-glass,.mo-window,.mo-list,.mo-chat,.mo-phone,.mo-laptop,.mo-chart,.mo-input,.mo-terminal,.mo-code,.mo-lt,.mo-callout,.mo-captions,.mo-hud,[data-group]';
+  function groupOf(el) { var c = el.closest(GROUP_SEL); if (!c) return 0; if (!c._moId) c._moId = ++blockSeq; return c._moId; }
   function inspect(M) {
     var stage = M.stage, sr = stage.getBoundingClientRect(), s = sr.width / M.W || 1, blocks = new Map(), list = [];
     var accent = parseColor(getComputedStyle(stage).getPropertyValue('--accent').trim() || '#000');
@@ -1242,7 +2138,7 @@
         it = { id: key._moId, el: key, text: '', x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, fx0: Infinity, fy0: Infinity, fx1: -Infinity, fy1: -Infinity, ink: 0, vink: 0, op: 0,
           font: parseFloat(cs0.fontSize) * (isFinite(sc) && sc > 0 ? sc : 1), color: col, bg: bg || stageBg, blur: blur, outline: stroke || col.a < 0.08,
           family: cs0.fontFamily.split(',')[0].replace(/["']/g, '').trim(), mono: /mono/i.test(cs0.fontFamily.split(',')[0]),
-          deco: !!key.closest('[data-deco]'), device: !!key.closest('.mo-phone .mo-screen, .mo-laptop .mo-screen'), accent: isAccent(col) };
+          deco: !!key.closest('[data-deco]'), device: !!key.closest('.mo-phone .mo-screen, .mo-laptop .mo-screen'), accent: isAccent(col), grp: groupOf(key) };
         blocks.set(key, it); list.push(it);
       }
       it.text += (it.text ? ' ' : '') + n.nodeValue.trim();
@@ -1276,7 +2172,7 @@
         var fgc = over(i.color, i.bg, i.op);
         return { id: i.id, text: i.text.slice(0, 48), len: i.text.replace(/\s/g, '').length, x0: R(i.x0, sr.left), y0: R(i.y0, sr.top), x1: R(i.x1, sr.left), y1: R(i.y1, sr.top),
           fx0: R(i.fx0, sr.left), fy0: R(i.fy0, sr.top), fx1: R(i.fx1, sr.left), fy1: R(i.fy1, sr.top), vis: +(i.vink / Math.max(1, i.ink)).toFixed(2), op: +i.op.toFixed(2),
-          font: Math.round(i.font), contrast: i.outline ? null : +contrast(fgc, i.bg).toFixed(2), blur: +i.blur.toFixed(1), family: i.family, mono: i.mono, deco: i.deco, device: i.device };
+          font: Math.round(i.font), contrast: i.outline ? null : +contrast(fgc, i.bg).toFixed(2), blur: +i.blur.toFixed(1), family: i.family, mono: i.mono, deco: i.deco, device: i.device, grp: i.grp };
       }),
       nested: nested, accents: groups.length,
       fonts: doc.fonts ? Array.from(doc.fonts).filter(function (f) { return f.status === 'loaded'; }).map(function (f) { return f.family.replace(/["']/g, ''); }).filter(function (v, k, a) { return a.indexOf(v) === k; }) : []

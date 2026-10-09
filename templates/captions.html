@@ -1,0 +1,317 @@
+<!doctype html>
+<!--
+  내레이션 설명 쇼츠 — 아래는 말에 맞춰 단어가 켜지는 자막, 위는 문장마다 바뀌는 그림.
+  자리: 위 1/3 = 머리(큰 숫자 + 제목) · 가운데 = 문장의 그림 · 아래 = 자막. 자막 위로는 어떤 글자도 내리지 않는다.
+  포인트 색 = "지금 말하는 말": 자막의 현재 단어와, 그 단어가 들릴 때 제목에 칠하는 형광펜만. 그림은 흰색·회색.
+
+  데모 자막(captions-demo.captions.json)은 대본으로 계획한 시간이다:
+    motion captions plan 대본.txt --rate 5 --max 18 --out captions-demo.captions.json
+
+  실제 녹음으로 바꾸기
+    1) 대본을 한 문장씩 한 줄로 script.txt에 적고, 녹음 voice.wav를 이 파일 옆에 둔다
+    2) motion captions align script.txt voice.wav --out voice.captions.json
+    3) #cap의 data-captions를 voice.captions.json으로 바꾸고, 그 아래 <audio> 줄의 주석을 푼다
+    4) voice.captions.json에서 문장마다 [첫 cue의 start, 마지막 cue의 end]를 스크립트의 S에, 강조할 단어의 words[].t를 Wd에 옮겨 적는다
+       (그림은 S보다 0.3초 먼저 바뀐다) · data-duration은 마지막 cue의 end + 1.3초 안팎
+
+  바꿀 문구(--vars): title(훅 제목, \n = 줄바꿈) · end · endKey(엔드카드 두 줄, 둘째 줄에 형광펜) · cta(버튼) · tag(모서리 라벨)
+  단계 제목(#kw1–3)·예시 막대 값·카드 항목은 마크업과 스크립트에서 바꾼다. 줄이 칸보다 길면 글자가 알아서 줄어든다.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  .mo-hud .mo-label { font-size: calc(var(--u) * 2.1); }
+  /* 오른쪽 위: 문장 진행 — 문장마다 한 칸이 말하는 동안 찬다 */
+  #prog { display: flex; align-items: center; gap: calc(var(--u) * 0.8); height: calc(var(--u) * 2.5); }
+  #prog i { position: relative; display: block; width: calc(var(--u) * 3.4); height: calc(var(--u) * 0.42); border-radius: 99px; overflow: hidden; background: rgba(var(--tint), 0.16); --p: 0; }
+  #prog i::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--fg); transform-origin: 0 50%; transform: scaleX(var(--p)); }
+
+  /* 머리: 구르는 큰 숫자 + 라벨(위 끝) + 제목(아래 끝). 훅·엔드카드에서는 가운데에 크게, 단계 동안은 위로 붙어 0.8배 */
+  #head { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 31%; display: flex; gap: calc(var(--u) * 3.8); }
+  #numBox { flex: none; height: 0.8em; overflow: hidden; font-family: var(--font-latin); font-weight: 640; font-size: calc(var(--u) * 38); line-height: 0.8; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+  #digits > * { display: block; height: 0.8em; }
+  #digits .ok { position: relative; }
+  #digits .ok svg { position: absolute; left: 0.02em; bottom: 0.06em; width: 0.62em; height: 0.66em; overflow: visible; fill: none; stroke: currentColor; stroke-width: 15; stroke-linecap: round; stroke-linejoin: round; }
+  .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--u) * 1.4) 0 calc(var(--u) * 0.7); }
+  #kick { font-size: calc(var(--u) * 2.4); }
+  .slot { display: grid; }
+  .slot > * { grid-area: 1 / 1; align-self: end; }
+  .kw { margin: 0; font-size: calc(var(--u) * 10); line-height: 1.12; letter-spacing: -0.036em; font-weight: 720; white-space: nowrap; }   /* 줄은 직접 나눈다: 마크업은 <br>, --vars에서는 \n */
+  #kw1 .hl { margin-right: 0.16em; } #kw2 .hl, #kw3 .hl { margin-left: 0.16em; }   /* 형광펜 상자가 옆 낱말에 붙지 않게 */
+
+  /* 훅의 "준비 시간" 막대 — 세 칸으로 나뉘고("세 단계로"), 짧아진다("줄여요") */
+  #tbar { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 53%; }
+  #tlab { margin: 0 0 calc(var(--u) * 2.2); }
+  .segs { display: flex; column-gap: 0px; height: calc(var(--u) * 2.2); }
+  .segs i { flex: 1; border-radius: 99px; background: rgba(var(--tint), 0.26); }
+  .snums { display: flex; column-gap: 0px; margin-top: calc(var(--u) * 1.8); }
+  .snums span { flex: 1; font-family: var(--font-mono); font-size: calc(var(--u) * 2); letter-spacing: 0.1em; color: var(--fg-3); }
+
+  /* 문장의 그림이 놓이는 자리(붙은 머리 아래 ~ 자막 위). 오른쪽 아래(높이 55% 아래, 폭 88% 바깥)는 쇼츠 버튼 자리라 글자를 두지 않는다 */
+  .beat { position: absolute; left: var(--safe-x); right: var(--safe-x); }
+
+  /* 1 반복 고르기 — 예시 막대(가장 긴 막대만 흰색) */
+  #b1 { top: 35.5%; }
+  #note { margin: 0; }
+  #chart { height: calc(var(--u) * 33); }
+  #chart.mo-chart-bar { gap: calc(var(--u) * 4); }
+  #chart .mo-chart-item { grid-template-columns: calc(var(--u) * 15.5) 1fr calc(var(--u) * 12); gap: calc(var(--u) * 2.6); }
+  #chart .mo-chart-lab { font-size: calc(var(--u) * 4.2); font-weight: 640; letter-spacing: -0.02em; }
+  #chart .mo-chart-track { height: calc(var(--u) * 6.4); border-radius: calc(var(--u) * 1.5); background: rgba(var(--tint), 0.05); }
+  #chart .mo-chart-fill { border-radius: calc(var(--u) * 1.5); background: rgba(var(--tint), 0.2); }
+  #chart .hi .mo-chart-fill { background: var(--fg); }
+  #chart .mo-chart-val { order: 1; font-size: calc(var(--u) * 4.4); font-weight: 640; text-align: right; }   /* 값은 막대 오른쪽 칸 */
+
+  /* 2 초안은 AI — 흐름(고른 일 → AI → 초안) */
+  #b2 { top: 37.5%; height: calc(var(--u) * 31); }
+  #wires { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; color: rgba(var(--tint), 0.3); }
+  #wires path { stroke-width: calc(var(--u) * 0.3); stroke-dasharray: 1; }
+  .node { position: absolute; top: 0; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 2.6); }
+  .node p { margin: 0; font-size: calc(var(--u) * 4.2); font-weight: 640; letter-spacing: -0.02em; color: var(--fg-2); white-space: nowrap; }
+  #nSrc { left: 0; } #nAi { left: 50%; width: calc(var(--u) * 21); margin-left: calc(var(--u) * -10.5); } #nOut { right: 0; }
+  #nSrc, #nOut { width: calc(var(--u) * 16.5); padding-top: calc(var(--u) * 2.25); }
+  .tile { display: grid; place-items: center; width: calc(var(--u) * 16.5); height: calc(var(--u) * 16.5); border-radius: calc(var(--u) * 4.4); font-size: calc(var(--u) * 5);
+          background: linear-gradient(180deg, rgba(var(--tint), 0.1), rgba(var(--tint), 0.04)), var(--surface); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px var(--line-2), 0 calc(var(--u) * 2) calc(var(--u) * 5) calc(var(--u) * -1.5) rgba(var(--shade), calc(var(--sh-a) * 1.1)); }
+  #aiTile { position: relative; width: calc(var(--u) * 21); height: calc(var(--u) * 21); border-radius: 50%; font-size: calc(var(--u) * 6.6); }
+  #aiTile .lit { position: absolute; inset: 0; border-radius: inherit; background: var(--fg); opacity: 0; }
+  #aiTile .mo-icon { position: relative; }
+  #nAi p { font-family: var(--font-latin); font-weight: 680; letter-spacing: -0.01em; }
+  .pkt { position: absolute; left: 0; top: 0; width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8); margin: calc(var(--u) * -0.9) 0 0 calc(var(--u) * -0.9); border-radius: 50%; background: var(--fg); box-shadow: 0 0 calc(var(--u) * 2.2) rgba(255, 255, 255, 0.55); }
+  #ring { position: absolute; left: 50%; top: 0; width: calc(var(--u) * 21); height: calc(var(--u) * 21); margin-left: calc(var(--u) * -10.5); border-radius: 50%; border: calc(var(--u) * 0.3) solid var(--fg); opacity: 0; }
+
+  /* 3 검토는 직접 — 초안 카드(흐름의 결과 타일이 그대로 자라서 된다) */
+  #b3 { top: 36%; left: calc(var(--safe-x) + var(--u) * 1.4); right: calc(var(--safe-x) + var(--u) * 1.4); }
+  #review { padding: calc(var(--u) * 4.6) calc(var(--u) * 5) calc(var(--u) * 2.6); border-radius: calc(var(--u) * 4.4); }
+  .rv-head { display: flex; align-items: center; gap: calc(var(--u) * 2); padding-bottom: calc(var(--u) * 3); border-bottom: 1px solid var(--line); font-size: calc(var(--u) * 4.8); font-weight: 680; letter-spacing: -0.025em; }
+  .rv-head .mo-icon { color: var(--fg-3); }
+  .rv-head .cnt { margin-left: auto; font-family: var(--font-latin); font-size: calc(var(--u) * 4.2); font-weight: 600; letter-spacing: -0.02em; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+  #review .mo-item { padding: calc(var(--u) * 3.4) 0; gap: calc(var(--u) * 2.6); font-size: calc(var(--u) * 4.2); font-weight: 600; }
+  #review .mo-check { width: calc(var(--u) * 5); height: calc(var(--u) * 5); }
+  #review .t { flex: none; padding-right: calc(var(--u) * 1.8); }
+  #review .sk { flex: 1; max-width: calc(var(--w, 1) * 100%); height: calc(var(--u) * 1.5); border-radius: 99px; background: rgba(var(--tint), 0.09); }
+  #review .mo-callout-dot { background: var(--fg); box-shadow: 0 0 0 calc(var(--u) * 0.6) rgba(255, 255, 255, 0.16); }
+  #review .mo-callout-label { font-size: calc(var(--u) * 3.4); color: var(--fg); }
+
+  /* 엔드카드 버튼 — 머리의 제목 줄과 같은 왼쪽 선 */
+  #cta { position: absolute; top: 52.5%; font-size: calc(var(--u) * 4); height: 3em; padding: 0 1.4em; }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}}>
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <div class="mo-dotgrid" style="opacity:.38"></div>
+    <div class="mo-horizon" id="hz" style="--hy:91%;--hs:2.3;opacity:.6"></div>
+  </div>
+
+  <div class="mo-world">
+    <header id="head" data-group>
+      <div id="numBox"><div id="digits"><span>3</span><span>1</span><span>2</span><span>3</span><span class="ok"><svg viewBox="0 0 100 100"><path d="M8 54 L36 82 L92 16"/></svg></span></div></div>
+      <div class="txt">
+        <p class="mo-label" id="kick">3 Steps</p>
+        <div class="slot">
+          <h1 class="kw" id="kw0" data-var="title" data-label="제목(훅) · 두 줄">수업 준비<br>
+            줄이는 법</h1>
+          <h1 class="kw" id="kw1"><span class="hl">반복</span> 고르기</h1>
+          <h1 class="kw" id="kw2">초안은 <span class="hl">AI</span></h1>
+          <h1 class="kw" id="kw3">검토는 <span class="hl">직접</span></h1>
+          <h1 class="kw" id="kw4"><span data-var="end" data-label="엔드카드 첫 줄">아낀 시간은</span><br><span class="hl" data-var="endKey" data-label="엔드카드 강조 줄">학생에게</span></h1>
+        </div>
+      </div>
+    </header>
+
+    <div id="tbar" data-group><p class="mo-small" id="tlab">준비 시간</p><div class="segs"><i></i><i></i><i></i></div><div class="snums"><span>01</span><span>02</span><span>03</span></div></div>
+
+    <section class="beat" id="b1" data-group>
+      <p class="mo-small" id="note">한 달 반복 횟수 · 예시</p>
+      <div id="chart"></div>
+    </section>
+
+    <section class="beat" id="b2" data-group>
+      <svg id="wires" class="mo-draw"><path id="w1" d=""/><path id="w2" d=""/></svg>
+      <i id="ring"></i>
+      <div class="node" id="nSrc"><span class="tile"><i data-icon="file-text"></i></span><p>활동지</p></div>
+      <div class="node" id="nAi"><span class="tile" id="aiTile"><b class="lit"></b><i data-icon="sparkles"></i></span><p>AI</p></div>
+      <div class="node" id="nOut"><span class="tile" id="outTile"><i data-icon="pen-line"></i></span><p>초안</p></div>
+      <i class="pkt" id="pkt1"></i><i class="pkt" id="pkt2"></i>
+    </section>
+
+    <section class="beat" id="b3">
+      <div class="mo-card" id="review">
+        <div class="rv-head"><i data-icon="file-text"></i><span>활동지 초안</span><span class="cnt"><span id="cnt">0</span>/3</span></div>
+        <div class="mo-list">
+          <div class="mo-item"><span class="mo-check"></span><span class="t">학습 목표</span><i class="sk" style="--w:.62"></i></div>
+          <div class="mo-item" id="r2"><span class="mo-check"></span><span class="t">활동 순서</span></div>
+          <div class="mo-item"><span class="mo-check"></span><span class="t">평가 문항</span><i class="sk" style="--w:.8"></i></div>
+        </div>
+      </div>
+    </section>
+
+    <span class="mo-btn" id="cta"><span data-var="cta" data-label="버튼">저장하고 따라 하기</span><i data-icon="arrow-up-right" data-stroke="2.3"></i></span>
+  </div>
+
+  <!-- 자막은 세계 밖(카메라가 움직여도 화면에 고정). 스타일: karaoke · pop · box · line -->
+  <div id="cap" data-captions="captions-demo.captions.json karaoke"></div>
+  <!-- 실제 내레이션: <audio src="voice.wav" data-role="voice" data-start="0"></audio> -->
+
+  <div class="mo-hud">
+    <span class="mo-label tl" data-var="tag" data-label="모서리 라벨">How-to · AI</span>
+    <div class="tr" id="prog"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { tl, cam, u, W, H, D } = M;
+  const css = (k) => getComputedStyle(M.stage).getPropertyValue(k).trim(), FG = css('--fg'), BG = css('--bg');   // 테마의 글자색·바탕색(색 트윈용)
+
+  // ── 시간: 자막 파일에서 읽어 적는다 ──────────────────────────────────────────────
+  // S = 문장마다 [첫 cue의 start, 마지막 cue의 end]. 그림은 말보다 LEAD초 먼저 바뀐다
+  const S = [[0.40, 2.92], [3.32, 5.68], [6.08, 8.58], [8.98, 11.34], [11.74, 14.70]];
+  const LEAD = 0.3, T = S.map(([a]) => Math.max(0, a - LEAD));              // T[0] 훅 · T[1–3] 단계 · T[4] 엔드카드
+  // W = 말과 함께 켜지는 순간(그 단어의 words[].t)
+  const Wd = { three: 1.36, shrink: 2.16, repeat: 3.72, pick: 4.92, ai: 7.28, entrust: 7.82, teacher: 9.58, direct: 10.38, students: 12.74 };
+
+  // ── 무대: 검정 위 낮은 지평선 빛. 카메라는 끝까지 아주 느리게 다가가고 미세하게 흔들린다 ──
+  M.grain();
+  cam.drift({ zoom: 1.04 });
+  cam.float({ rot: 0.25, pos: u * 0.3, period: 10 });
+  tl.fromTo('#hz', { '--hy': '91.5%' }, { '--hy': '88%', duration: D, ease: 'none' }, 0);
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, duration: 0.5, stagger: 0.1 }, 0);
+  M.$$('#prog i').forEach((seg, i) => M.fill(seg, { from: 0, to: 1, duration: S[i][1] - S[i][0], ease: 'none' }, S[i][0]));
+
+  // ── 머리: 훅에서는 가운데, 단계 동안 위로 붙었다가, 엔드카드에서 다시 내려온다 ──
+  // 문구를 바꿔도 칸을 넘지 않게: 가장 긴 줄이 글자 칸보다 길면 그만큼 글자를 줄이고, 막대·버튼은 머리 바로 아래에 둔다
+  const fit = (el, maxW) => { const over = el.scrollWidth / maxW; if (over > 1.001) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) / over).toFixed(2) + 'px'; };
+  const col = M.rect('#head .txt');
+  M.$$('#head .kw').forEach((el) => fit(el, col.w));
+  fit(M.$('#cta'), W - col.x - M.rect('#head').x);
+  const HB = M.rect('#head'), below = HB.y + HB.h;
+  gsap.set('#tbar', { top: below + u * 9.5 });
+  gsap.set('#cta', { top: below + u * 8, left: col.x });
+  const DOCK = { y: H * 0.155 - HB.y, scale: 0.8 };                         // 단계 동안 머리가 붙는 자리(화면 높이 15.5%)와 크기
+  const ROLL = 100 / M.$$('#digits > *').length;                           // 숫자 한 칸 = 띠의 몇 %
+  const roll = (k, at) => tl.to('#digits', { yPercent: -ROLL * k, duration: 0.85, ease: 'mo.inOut' }, at);
+  M.text('#kick', [[T[1] + 0.12, 'Step 01'], [T[2] + 0.12, 'Step 02'], [T[3] + 0.12, 'Step 03'], [T[4] + 0.12, '3 / 3 Done']], { scramble: 0.45 });
+  M.scene('#kw1', T[1], T[2] + 0.6).scene('#kw2', T[2], T[3] + 0.6).scene('#kw3', T[3], T[4] + 0.6).scene('#kw4', T[4]);
+
+  // ── 0 훅 (0 – T1): 비스듬한 화면이 바로 서며 큰 3과 제목이 솟는다. 첫 프레임부터 움직이는 중 ──
+  cam.set({ rx: 7, ry: -9, zoom: 1.1 });
+  cam.to({ rx: 0, ry: 0, zoom: 1, duration: 2.4, ease: 'mo.out' }, 0);
+  tl.fromTo('#digits', { yPercent: ROLL * 0.62 }, { yPercent: 0, duration: 1.05, ease: 'mo.out' }, 0);
+  M.reveal('#kick', { type: 'fade', y: u * 1.2, pre: 0.3, duration: 0.6 }, 0.05);
+  M.reveal('#kw0', { type: 'rise', pre: 0.35, stagger: 0.09 }, 0);
+  M.pulse('#numBox', { scale: 1.035, duration: 0.6 }, Wd.three);             // "세" 단계 — 숫자가 한 번 숨 쉰다
+  // 준비 시간 막대: "수업 준비"에 차오르고 → "세 단계로" 세 칸으로 나뉘어 하나씩 켜지고 → "줄여요"에 짧아진다
+  M.scene('#tbar', 0, T[1] + 0.6);
+  M.reveal('#tlab', { type: 'fade', y: u * 1.2 }, 0.45);
+  tl.from('.segs', { scaleX: 0, transformOrigin: '0 50%', duration: 0.9, ease: 'mo.out' }, 0.5);
+  tl.to('.segs, .snums', { columnGap: u * 1.6, duration: 0.5, ease: 'mo.inOut' }, Wd.three - 0.08);
+  M.reveal('.snums span', { type: 'fade', y: u, duration: 0.5, stagger: 0.16 }, Wd.three);
+  tl.to('.segs i', { backgroundColor: FG, duration: 0.25, ease: 'power1.out', stagger: 0.16 }, Wd.three);
+  tl.to('.segs i', { scaleX: 0.38, transformOrigin: '0 50%', duration: 0.75, ease: 'mo.inOut', stagger: 0.07 }, Wd.shrink - 0.05);
+  tl.to('.segs i', { scaleX: 0, duration: 0.35, ease: 'mo.in', stagger: 0.04 }, T[1]);
+  M.exit('#tlab, .snums span', { type: 'fade', duration: 0.3, stagger: 0.03 }, T[1]);
+
+  // ── 1 반복 고르기 (T1 – T2): 머리가 위로 붙고 3이 1로 구른다. 막대가 차오르고, 가장 긴 하나만 남긴다 ──
+  tl.to('#head', { y: DOCK.y, scale: DOCK.scale, transformOrigin: '0 0', duration: 1.0, ease: 'mo.inOut' }, T[1]);
+  roll(1, T[1] + 0.05);
+  M.exit('#kw0', { type: 'rise', duration: 0.45 }, T[1]);
+  M.reveal('#kw1', { type: 'rise' }, T[1] + 0.3);
+  M.highlight('#kw1 .hl', { duration: 0.5 }, Wd.repeat - 0.06);
+  M.scene('#b1', T[1] + 0.4, T[2] + 0.55);
+  M.reveal('#note', { type: 'fade', y: u * 1.4 }, T[1] + 0.45);
+  M.chart('#chart', { type: 'bar', data: [12, 6, 3], labels: ['활동지', '평가표', '안내문'], unit: '회', highlight: 0, duration: 1.0, stagger: 0.09 }, T[1] + 0.62);
+  tl.from('#chart .mo-chart-track', { scaleX: 0, transformOrigin: '0 50%', duration: 0.8, ease: 'mo.out', stagger: 0.08 }, T[1] + 0.5);   // 빈 막대 자리부터 자란다
+  const rows = M.$$('#chart .mo-chart-item');
+  tl.to(rows.slice(1), { opacity: 0.28, duration: 0.45, ease: 'mo.soft', stagger: 0.05 }, Wd.pick - 0.1);   // "골라요" — 나머지는 물러난다
+  M.pulse(rows[0], { scale: 1.025, duration: 0.55 }, Wd.pick - 0.05);
+  cam.to({ zoom: 1.025, rx: -1, ry: 2.4, duration: 2.6 }, T[1] - 0.1);
+
+  // ── 2 초안은 AI (T2 – T3): 고른 "활동지"가 흐름의 출발점이 되어 AI를 지나 초안이 된다 ──
+  const b2 = M.rect('#b2'), tSrc = M.rect('#nSrc .tile'), tAi = M.rect('#aiTile'), tOut = M.rect('#outTile');
+  const loc = (x, y) => [x - b2.x, y - b2.y], gap = u * 2.2;
+  const [x1, y1] = loc(tSrc.x + tSrc.w + gap, tAi.cy), [x2] = loc(tAi.x - gap, 0), [x3] = loc(tAi.x + tAi.w + gap, 0), [x4] = loc(tOut.x - gap, 0);
+  M.$('#wires').setAttribute('viewBox', `0 0 ${b2.w} ${b2.h}`);
+  M.$('#w1').setAttribute('d', `M${x1} ${y1} L${x2} ${y1}`);
+  M.$('#w2').setAttribute('d', `M${x3} ${y1} L${x4} ${y1}`);
+  gsap.set('#ring', { top: tAi.y - b2.y });
+  M.scene('#b2', T[2] - 0.1, T[3] + 0.6);
+  M.exit('#b1', { type: 'fade', y: -u * 2, duration: 0.4 }, T[2] - 0.05);
+  // 차트의 "활동지" 글자 자리에서 출발점 노드가 나와 제자리로 간다(같은 말이 이어진다)
+  const chartLab = rows[0].querySelector('.mo-chart-lab'), lab = M.rect(chartLab), srcLab = M.rect('#nSrc p');
+  tl.set(chartLab, { autoAlpha: 0 }, T[2] - 0.1);                                                      // 같은 글자가 두 번 보이지 않게 넘겨준다
+  tl.fromTo('#nSrc', { x: lab.x - srcLab.x, y: lab.cy - srcLab.cy }, { x: 0, y: 0, duration: 0.95, ease: 'mo.inOut' }, T[2] - 0.1);
+  tl.from('#nSrc .tile', { autoAlpha: 0, scale: 0.6, duration: 0.6, ease: 'mo.out' }, T[2] + 0.45);
+  tl.from('#nSrc p', { color: FG, duration: 0.6 }, T[2] + 0.3);                                        // 차트의 흰 글자가 노드의 회색 이름표로 가라앉는다
+  tl.from('#nAi', { autoAlpha: 0, scale: 0.78, duration: 0.8, ease: 'mo.out' }, T[2] + 0.35);
+  M.reveal('#w1', { type: 'draw', duration: 0.6 }, T[2] + 0.65);
+  M.scene('#pkt1', Wd.ai - 0.55, Wd.ai + 0.02).scene('#pkt2', Wd.ai + 0.12, Wd.entrust + 0.05);
+  M.follow('#pkt1', '#w1', { duration: 0.55, ease: 'power2.in' }, Wd.ai - 0.55);       // 점이 닿는 순간 = "AI에게"
+  tl.to('#aiTile .lit', { opacity: 1, duration: 0.22, ease: 'power2.out' }, Wd.ai);                    // 닿는 순간 AI가 켜진다(흰 면 + 어두운 아이콘)
+  tl.to('#aiTile .mo-icon', { color: BG, duration: 0.22, ease: 'power2.out' }, Wd.ai);
+  M.pulse('#aiTile', { scale: 1.08, duration: 0.55 }, Wd.ai);
+  tl.fromTo('#ring', { scale: 1, opacity: 0.55 }, { scale: 1.6, opacity: 0, duration: 0.8, ease: 'mo.out', immediateRender: false }, Wd.ai);
+  M.highlight('#kw2 .hl', { duration: 0.45 }, Wd.ai - 0.06);
+  M.reveal('#w2', { type: 'draw', duration: 0.45 }, Wd.ai + 0.1);
+  M.follow('#pkt2', '#w2', { duration: 0.42, ease: 'power2.inOut' }, Wd.ai + 0.12);
+  M.reveal('#nOut', { type: 'lift', duration: 0.8 }, Wd.entrust - 0.3);             // "맡겨요" — 결과가 나온다
+  roll(2, T[2] + 0.05);
+  M.exit('#kw1', { type: 'rise', duration: 0.45 }, T[2]);
+  M.reveal('#kw2', { type: 'rise' }, T[2] + 0.3);
+  cam.to({ x: W / 2 - u * 1.2, zoom: 1.035, rx: 1.2, ry: -3.2, duration: 2.8, ease: 'mo.inOut' }, T[2] - 0.15);
+
+  // ── 3 검토는 직접 (T3 – T4): 초안 타일이 그대로 카드로 자라고, 선생님의 체크가 하나씩 ──
+  M.scene('#b3', T[3] - 0.05, T[4] + 0.45);
+  const card = M.rect('#review');
+  tl.fromTo('#review', { x: tOut.cx - card.cx, y: tOut.cy - card.cy, scaleX: tOut.w / card.w, scaleY: tOut.h / card.h, borderRadius: u * 4.4 * card.w / tOut.w },
+    { x: 0, y: 0, scaleX: 1, scaleY: 1, borderRadius: u * 4.4, duration: 0.95, ease: 'mo.settle' }, T[3]);
+  tl.to('#nOut', { autoAlpha: 0, duration: 0.2 }, T[3] + 0.02);
+  M.exit('#nSrc, #nAi, #wires', { type: 'fade', y: 0, duration: 0.35, stagger: 0.03 }, T[3] - 0.05);
+  tl.from('#review .rv-head, #review .mo-item', { autoAlpha: 0, y: u * 2.4, duration: 0.6, stagger: 0.07 }, T[3] + 0.28);
+  gsap.set('#review .t', { opacity: 0.5 });
+  const checks = M.$$('#review .mo-check'), at3 = [Wd.direct - 0.6, Wd.direct - 0.3, Wd.direct];
+  checks.forEach((c, i) => {
+    M.fill(c, { duration: 0.5, ease: 'mo.spring' }, at3[i]);
+    tl.to(c.parentElement.querySelector('.t'), { opacity: 1, duration: 0.3 }, at3[i]);
+  });
+  M.count('#cnt', { from: 0, to: 3, duration: 0.9, ease: 'none', round: 'floor' }, at3[0] - 0.3);   // 체크가 찍힐 때마다 1씩
+  M.callout('#r2 .t', { text: '사실 확인', side: 'right', length: u * 5 }, Wd.teacher + 0.05);
+  M.highlight('#kw3 .hl', { duration: 0.45 }, Wd.direct - 0.06);
+  cam.punch({ scale: 1.022, duration: 0.6 }, Wd.direct);                     // "직접" — 마지막 체크와 함께 화면이 한 번 받는다
+  roll(3, T[3] + 0.05);
+  M.exit('#kw2', { type: 'rise', duration: 0.45 }, T[3]);
+  M.reveal('#kw3', { type: 'rise' }, T[3] + 0.3);
+  cam.to({ x: W / 2, zoom: 1.015, rx: 1.5, ry: 2.2, duration: 2.6 }, T[3] - 0.1);
+
+  // ── 4 엔드카드 (T4 – 끝): 머리가 다시 가운데로 내려오고 3이 체크가 된다. 마지막 1초 이상은 정지 ──
+  M.exit('#review', { type: 'fade', y: u * 3, duration: 0.4 }, T[4] - 0.2);
+  tl.to('#head', { y: 0, scale: 1, duration: 1.1, ease: 'mo.inOut' }, T[4] - 0.05);
+  roll(4, T[4]);
+  M.reveal('#digits .ok path', { type: 'draw', duration: 0.6, ease: 'mo.out' }, T[4] + 0.4);
+  M.exit('#kw3', { type: 'rise', duration: 0.45 }, T[4]);
+  M.reveal('#kw4', { type: 'rise', stagger: 0.1 }, T[4] + 0.3);
+  M.highlight('#kw4 .hl', { duration: 0.55 }, Wd.students - 0.06);
+  M.scene('#cta', T[4] + 0.6);
+  M.reveal('#cta', { type: 'pop' }, T[4] + 0.95);
+  cam.to({ x: W / 2, y: H / 2, zoom: 1, rx: 0, ry: 0, duration: 2.2 }, T[4] - 0.2);
+
+  // ── 소리: 내레이션 아래에 깔리도록 작게, 큰 움직임에만 ──
+  M.sfx('whoosh', { volume: 0.35 }, T[1]);
+  M.sfx('tick', { volume: 0.5 }, Wd.pick - 0.05);
+  M.sfx('sparkle', { volume: 0.45 }, Wd.ai);
+  M.sfx('success', { volume: 0.4 }, Wd.direct);
+  M.sfx('swell', { volume: 0.35 }, T[4] - 0.3);
+  M.sfx('pop', { volume: 0.5 }, T[4] + 0.95);
+});
+</script>
+</body>
+</html>

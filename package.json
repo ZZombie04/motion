@@ -1,7 +1,7 @@
 {
   "name": "motion-director",
-  "version": "1.0.0",
-  "description": "말 한마디를 감독 수준의 모션그래픽으로 — 리프롬프팅 디렉터 + 결정적 HTML/GSAP 엔진 + MP4 렌더러 + MCP 서버",
+  "version": "2.0.0",
+  "description": "말 한마디를 감독이 연출한 모션그래픽으로 — 리프롬프팅 디렉터 + 결정적 HTML/GSAP 엔진 + 모션 블러 렌더러 + 사운드·자막·채점 + MCP 서버 22종",
   "type": "module",
   "license": "MIT",
   "private": true,
@@ -22,7 +22,9 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "gsap": "^3.15.0",
+    "lottie-web": "^5.13.0",
     "puppeteer-core": "^25.12.0",
+    "three": "^0.186.1",
     "zod": "^4.6.5"
   },
   "repository": {
@@ -31,10 +33,23 @@
   },
   "keywords": [
     "motion-graphics",
-    "claude-skill",
-    "mcp",
-    "gsap",
+    "kinetic-typography",
     "video",
+    "claude",
+    "claude-code",
+    "claude-skill",
+    "codex",
+    "mcp",
+    "mcp-server",
+    "gsap",
+    "motion-blur",
+    "sound-design",
+    "captions",
+    "ai-video",
     "korean"
-  ]
+  ],
+  "homepage": "https://zzombie04.github.io/motion/",
+  "bugs": {
+    "url": "https://github.com/ZZombie04/motion/issues"
+  }
 }

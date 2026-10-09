@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 3D 히어로 — 스튜디오 조명 아래 포인트 색 금속 조형이 천천히 돌고, 옆 여백에 제목이 마스크 리빌로 솟는다.
+     조형·조명·카메라는 M.three(실제 WebGL), 글자는 DOM. 모든 움직임은 시간 t의 함수다.
+     바꾸기 쉬운 것: 문구(data-var), 포인트 색 = 금속 색(data-accent), 재질 finish=metal|gloss, 조형 shape=ribbon|prism. */
+  #gl { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; }
+  #halo, #pool { position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none; }
+  /* 조형 뒤 배경지에 떨어지는 스팟(중립 + 아주 옅은 포인트 색), 바닥의 빛 웅덩이 — 자리는 3D 투영으로 매 프레임 맞춘다 */
+  #halo { width: calc(var(--u) * 150); height: calc(var(--u) * 150); margin: calc(var(--u) * -75) 0 0 calc(var(--u) * -75);
+          background: radial-gradient(closest-side, rgba(var(--tint), 0.1), color-mix(in oklab, var(--accent) 8%, transparent) 45%, transparent); }
+  #pool { width: calc(var(--u) * 90); height: calc(var(--u) * 16); margin: calc(var(--u) * -8) 0 0 calc(var(--u) * -45);
+          background: radial-gradient(closest-side, rgba(var(--tint), 0.085), rgba(var(--tint), 0.025) 62%, transparent); }
+  [data-theme="white"] #halo, [data-theme="paper"] #halo { background: radial-gradient(closest-side, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.4) 45%, transparent); }
+
+  #copy { position: absolute; left: var(--safe-x); top: 50%; width: 44%; transform: translateY(-50%); }
+  #kicker { display: flex; align-items: center; gap: 0.9em; }
+  #kicker::before { content: ""; flex: none; width: calc(var(--u) * 3.2); height: 1px; background: currentColor; opacity: 0.7; }
+  #title { margin: calc(var(--u) * 3.4) 0 0; font-size: calc(var(--u) * 10.4); line-height: 1.1; font-weight: 740; letter-spacing: -0.045em; }
+  #title .mo-l + .mo-l { color: var(--fg-2); }
+  #sub { margin: calc(var(--u) * 4.2) 0 0; max-width: calc(var(--u) * 58); font-size: calc(var(--u) * 3.3); }
+  #cta { margin-top: calc(var(--u) * 6); font-size: calc(var(--u) * 2.5); height: 2.8em; padding: 0 1.25em 0 1.5em; }
+  #cta .mo-icon { width: 1.05em; height: 1.05em; }
+  #rot { font-variant-numeric: tabular-nums; }
+
+  /* 가로가 아닌 화면(세로·정사각): 조형은 위, 글은 아래 */
+  #stage.stack #copy { left: var(--safe-x); right: var(--safe-x); width: auto; top: auto; bottom: calc(var(--safe-b) + var(--u) * 4); transform: none; }
+  #stage.stack #title { font-size: calc(var(--u) * 9.6); }
+  #stage.stack #sub { margin-top: calc(var(--u) * 3); }
+  #stage.stack #cta { margin-top: calc(var(--u) * 4.4); }
+  #stage.tall #title { font-size: calc(var(--u) * 12.4); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}}>
+  <div class="mo-bg">
+    <div class="mo-stagelight"></div>
+    <i id="halo"></i>
+    <i id="pool"></i>
+  </div>
+  <canvas id="gl"></canvas>
+
+  <div class="mo-world">
+    <section id="copy">
+      <p class="mo-label" id="kicker" data-var="kicker" data-label="머리말(영문 대문자 권장)">INTRODUCING</p>
+      <h1 id="title" data-var="title" data-label="제목(\n 줄바꿈, 2줄)">단단하게,<br>그리고 가볍게</h1>
+      <p class="mo-body" id="sub" data-var="subline" data-label="한 줄 설명">모든 디테일을 처음부터 다시 설계했습니다.</p>
+      <span class="mo-btn ghost" id="cta"><span data-var="cta" data-label="버튼">자세히 보기</span><i data-icon="arrow-right" data-stroke="2.2"></i></span>
+    </section>
+  </div>
+
+  <div class="mo-hud">
+    <span class="mo-label tl" data-var="corner" data-label="모서리 라벨">STUDIO · 01</span>
+    <span class="mo-label tr" id="rot">ROT 000°</span>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { cam, u, W, H, D } = M;
+  const stack = W / H < 1.3, tall = H / W > 1.5;          // 가로 화면은 좌우 배치, 그 밖(세로·정사각)은 위아래로 쌓는다
+  M.stage.classList.toggle('stack', stack);
+  M.stage.classList.toggle('tall', tall);
+  const css = getComputedStyle(M.stage), light = css.colorScheme === 'light';
+
+  // 조형이 제 축으로 도는 각도: 처음엔 조금 빠르게, 곧 초당 30도쯤으로 느긋해진다(0초에 이미 도는 중)
+  const spinAt = (t) => 0.3 + 0.52 * t + (1.25 - 0.52) * 1.3 * (1 - Math.exp(-t / 1.3));
+
+  // ── 무대 ──
+  M.grain();
+  cam.drift({ zoom: 1.03 });
+  M.reveal('.mo-hud > *', { type: 'fade', y: 0, duration: 0.6, stagger: 0.1, pre: 0.5 }, 0);
+  const rot = M.$('#rot');
+  M.onFrame((t) => { const s = 'ROT ' + String(Math.round((spinAt(t) * 180) / Math.PI) % 360).padStart(3, '0') + '°'; if (rot.textContent !== s) rot.textContent = s; });
+
+  // ── 글: 머리말 → 제목 두 줄(마스크 리빌) → 설명 → 버튼 ──
+  M.reveal('#kicker', { type: 'fade', y: u * 1.2, duration: 0.8, pre: 0.6 }, 0);
+  M.reveal('#title', { type: 'rise', duration: 1.1, stagger: 0.12, sfx: true }, 0.08);
+  M.reveal('#sub', { type: 'fade', y: u * 1.6, duration: 0.9 }, 1.0);
+  M.reveal('#cta', { type: 'fade', y: u * 1.4, duration: 0.8 }, 3.4);
+
+  // ── 소리: 조명이 켜짐 · 제목 · 반사광이 훑음 · 버튼 ──
+  M.sfx('swell', { volume: 0.5 }, 0);
+  M.sfx('whoosh', { volume: 0.3, pitch: 0.85 }, 2.6);
+  M.sfx('tap', { volume: 0.55 }, 3.45);
+
+  // ── 3D ──
+  M.three('#gl', (THREE, { scene, camera, renderer }) => {
+    const finish = M.var('finish', 'metal', { label: '재질', type: 'select', options: ['metal', 'gloss'] });
+    const shape = M.var('shape', 'ribbon', { label: '조형', type: 'select', options: ['ribbon', 'prism'] });
+    // 금속 색 = 포인트 색. 배경이 포인트 색인 pop 테마에서는 그 위의 글자색(흰/검정)으로 바꿔 조형이 배경에 묻히지 않게 한다
+    const accent = new THREE.Color((css.getPropertyValue(M.stage.dataset.theme === 'pop' ? '--on-accent' : '--accent').trim()) || '#3D7BFF');
+    renderer.toneMapping = THREE.NeutralToneMapping;
+
+    // 스튜디오 — 금속이 비추는 것은 이 방뿐이다: 어두운 벽, 왼쪽 위 큰 소프트박스(키), 천장, 렌즈 위 반사판(채움),
+    // 뒤 양옆 세로 스트립과 정면 뒤 배경판(림 — 실루엣 가장자리는 대상 바로 뒤를 비춘다)
+    const room = new THREE.Scene(), wall = light ? 0.5 : 0.05;
+    room.add(new THREE.Mesh(new THREE.BoxGeometry(40, 40, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(wall, wall, wall), side: THREE.BackSide })));
+    const panel = (w, h, x, y, z, k) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(k, k, k), side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); room.add(m); };
+    panel(12, 8, -9, 8, 8, 4);            // key softbox
+    panel(18, 18, 0, 14, 0, 2.2);         // ceiling
+    panel(20, 9, 0, 6, 16, 2.5);          // bounce card above the lens
+    panel(1.6, 16, 11, 1, -6, 9);         // rim strip right
+    panel(1.3, 14, -11, -1, -5, 6);       // rim strip left
+    panel(16, 7, 0, 1, -15, 1.3);         // backdrop glow behind the object
+    panel(20, 8, 0, -6, 15, light ? 0.8 : 0.12);   // floor bounce
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(room, 0.02).texture;
+    pmrem.dispose();
+
+    // 조형: 단면(둥근 다각형)을 고리 둘레로 쓸어 가며 비튼다. m각 단면을 2π/m만큼 비틀면 이음매가 맞물린다
+    // ribbon = 납작한 띠를 반 바퀴(뫼비우스) · prism = 둥근 삼각 단면을 1/3바퀴
+    function section(S) {
+      const out = [];
+      if (shape === 'prism') {
+        const m = 3, d = 0.3, rc = 0.14, per = S / m, L = 2 * d * Math.sin(Math.PI / m), arc = (2 * Math.PI / m) * rc, seg = L + arc;
+        for (let c = 0; c < m; c++) {
+          const th = (2 * Math.PI * c) / m, vx = d * Math.cos(th), vy = d * Math.sin(th), wx = d * Math.cos(th + 2 * Math.PI / m), wy = d * Math.sin(th + 2 * Math.PI / m);
+          for (let q = 0; q < per; q++) {
+            const s = (q / per) * seg;
+            if (s < arc) { const a = th - Math.PI / m + s / rc; out.push([vx + rc * Math.cos(a), vy + rc * Math.sin(a)]); }
+            else { const f = (s - arc) / L, nx = Math.cos(th + Math.PI / m), ny = Math.sin(th + Math.PI / m); out.push([vx + (wx - vx) * f + rc * nx, vy + (wy - vy) * f + rc * ny]); }
+          }
+        }
+        return { pts: out, m };
+      }
+      const a = 0.46, b = 0.13, n = 3.2;
+      for (let j = 0; j < S; j++) { const t = (j / S) * Math.PI * 2, c = Math.cos(t), s = Math.sin(t); out.push([a * Math.sign(c) * Math.pow(Math.abs(c), 2 / n), b * Math.sign(s) * Math.pow(Math.abs(s), 2 / n)]); }
+      return { pts: out, m: 2 };
+    }
+    function sweptRing(R, N, S) {
+      const sec = section(S), twist = (2 * Math.PI) / sec.m, shift = S / sec.m;
+      const pos = new Float32Array(N * S * 3), idx = new Uint32Array(N * S * 6);
+      for (let i = 0; i < N; i++) {
+        const v = (i / N) * Math.PI * 2, cv = Math.cos(v), sv = Math.sin(v), ph = (twist * i) / N, cp = Math.cos(ph), sp = Math.sin(ph);
+        for (let j = 0; j < S; j++) {
+          const x = sec.pts[j][0] * cp - sec.pts[j][1] * sp, y = sec.pts[j][0] * sp + sec.pts[j][1] * cp, k = (i * S + j) * 3;
+          pos[k] = (R + x) * cv; pos[k + 1] = (R + x) * sv; pos[k + 2] = y;
+        }
+      }
+      let q = 0;
+      for (let i = 0; i < N; i++) {
+        const i2 = (i + 1) % N, sh = i2 === 0 ? shift : 0;     // 비튼 만큼 이음매에서 단면 번호가 밀린다
+        for (let j = 0; j < S; j++) {
+          const j2 = (j + 1) % S, A = i * S + j, B = i * S + j2, C = i2 * S + ((j + sh) % S), E = i2 * S + ((j2 + sh) % S);
+          idx[q++] = A; idx[q++] = C; idx[q++] = B; idx[q++] = B; idx[q++] = C; idx[q++] = E;
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setIndex(new THREE.BufferAttribute(idx, 1));
+      g.computeVertexNormals();
+      return g;
+    }
+    const mat = new THREE.MeshPhysicalMaterial(finish === 'gloss'
+      ? { color: accent, metalness: 0.15, roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.03 }
+      : { color: accent, metalness: 1, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.1 });
+    const obj = new THREE.Mesh(sweptRing(1.3, 520, 120), mat);
+    const spin = new THREE.Group(), turn = new THREE.Group();
+    spin.add(obj); turn.add(spin); scene.add(turn);
+
+    const key = new THREE.DirectionalLight(0xffffff, finish === 'gloss' ? 3.2 : 1.2); key.position.set(-4, 6, 5);
+    const rim = new THREE.DirectionalLight(0xffffff, 2.4); rim.position.set(6, 2, -6);
+    scene.add(key, rim, new THREE.HemisphereLight(0xffffff, 0x202020, light ? 0.6 : finish === 'gloss' ? 0.08 : 0.25));
+
+    // 접지 그림자: 위에서 내려다본 "바닥까지의 높이"를 그리고 두 번 흐려 바닥에 깐다(매 프레임 다시 — 시간의 함수)
+    const floorY = -1.72, SZ = 6.5, RES = 256, RANGE = 1.9;
+    const rtA = new THREE.WebGLRenderTarget(RES, RES), rtB = new THREE.WebGLRenderTarget(RES, RES);
+    const shCam = new THREE.OrthographicCamera(-SZ / 2, SZ / 2, SZ / 2, -SZ / 2, 0, RANGE + 0.5);
+    shCam.position.set(0, floorY + RANGE + 0.5, 0); shCam.up.set(0, 0, -1); shCam.lookAt(0, floorY, 0);
+    const heightMat = new THREE.ShaderMaterial({
+      uniforms: { floorY: { value: floorY }, range: { value: RANGE } },
+      vertexShader: 'uniform float floorY; varying float vH; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vH = w.y - floorY; gl_Position = projectionMatrix * viewMatrix * w; }',
+      fragmentShader: 'uniform float range; varying float vH; void main() { float k = clamp(1.0 - vH / range, 0.0, 1.0); gl_FragColor = vec4(vec3(k * k), 1.0); }',
+      side: THREE.DoubleSide, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.MaxEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor
+    });
+    const blurMat = new THREE.ShaderMaterial({
+      uniforms: { tex: { value: null }, dir: { value: new THREE.Vector2() } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: 'uniform sampler2D tex; uniform vec2 dir; varying vec2 vUv; void main() { float w[5]; w[0] = 0.227027; w[1] = 0.1945946; w[2] = 0.1216216; w[3] = 0.0540541; w[4] = 0.0162162; vec4 s = texture2D(tex, vUv) * w[0]; for (int i = 1; i < 5; i++) { s += texture2D(tex, vUv + dir * float(i)) * w[i]; s += texture2D(tex, vUv - dir * float(i)) * w[i]; } gl_FragColor = s; }',
+      depthTest: false, depthWrite: false
+    });
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMat), quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(SZ, SZ), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, alphaMap: rtA.texture, opacity: light ? 0.42 : 0.85, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2; shadow.position.y = floorY; scene.add(shadow);
+    const clear = new THREE.Color();
+    function contactShadow() {
+      renderer.getClearColor(clear); const clearA = renderer.getClearAlpha();
+      renderer.setClearColor(0x000000, 0);
+      obj.material = heightMat; renderer.setRenderTarget(rtA); renderer.render(turn, shCam); obj.material = mat;
+      for (const r of [1.4, 2.8]) {
+        blurMat.uniforms.tex.value = rtA.texture; blurMat.uniforms.dir.value.set(r / RES, 0); renderer.setRenderTarget(rtB); renderer.render(quad, quadCam);
+        blurMat.uniforms.tex.value = rtB.texture; blurMat.uniforms.dir.value.set(0, r / RES); renderer.setRenderTarget(rtA); renderer.render(quad, quadCam);
+      }
+      renderer.setRenderTarget(null); renderer.setClearColor(clear, clearA);
+    }
+
+    // 렌즈: 망원(24°)으로 왜곡 없이. 렌즈 시프트로 조형을 화면 오른쪽(세로면 위쪽)에 둔다 — 카메라는 조형을 똑바로 본다
+    camera.fov = 24; camera.near = 0.1; camera.far = 100;
+    camera.setViewOffset(W, H, stack ? 0 : -W * 0.21, stack ? H * (tall ? 0.2 : 0.24) : 0, W, H);
+
+    const halo = M.$('#halo'), pool = M.$('#pool'), p3 = new THREE.Vector3();
+    const toStage = (x, y, z) => { p3.set(x, y, z).project(camera); return { x: (p3.x * 0.5 + 0.5) * W, y: (-p3.y * 0.5 + 0.5) * H }; };
+    const ease = (x) => 1 - Math.pow(1 - M.clamp(x, 0, 1), 2.2);
+    const sweep = M.ease('mo.inOut');
+    // 조형(지름 약 3.6)이 가로 화면에서는 높이의 78%, 쌓는 화면에서는 폭의 70%·높이의 40% 안에 들도록 거리를 정한다
+    const span = stack ? Math.max(3.6 / 0.4, 3.6 / (0.7 * (W / H))) : 4.6, near = span / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))), far = near * 1.24;
+
+    return (t) => {
+      // 조형: 제 축으로 돌며(비틀림이 흐른다) 몸 전체는 천천히 고개를 돌린다
+      spin.rotation.z = spinAt(t);
+      turn.rotation.set(0.95 - 0.12 * ease(t / D), -0.62 + 0.5 * Math.sin((t / D) * 1.6), 0.12);
+      turn.position.y = 0.05 * Math.sin(t * 0.8);
+      // 빛: 켜지며 시작하고, 2.6초쯤 반사광이 한 번 훑고 지나간다
+      renderer.toneMappingExposure = 0.6 + 0.4 * ease(t / 1.4);
+      scene.environmentRotation.y = -0.5 + 1.2 * sweep(M.clamp((t - 2.5) / 1.8, 0, 1)) + 0.03 * t;
+      // 카메라: 한 방향으로 길게 다가가며 살짝 돌아 들어간다
+      const p = ease(t / D);
+      camera.position.set(M.lerp(1.2, -0.45, p), M.lerp(0.9, 0.45, p), M.lerp(far, near, p));
+      camera.lookAt(0, 0, 0);
+      contactShadow();
+      // DOM의 스팟과 바닥 빛을 조형 뒤·아래에 맞춘다
+      const c = toStage(0, 0.2, -2.5), f = toStage(0, floorY, 0);
+      halo.style.transform = 'translate(' + c.x.toFixed(1) + 'px,' + c.y.toFixed(1) + 'px)';
+      pool.style.transform = 'translate(' + f.x.toFixed(1) + 'px,' + f.y.toFixed(1) + 'px)';
+    };
+  });
+});
+</script>
+</body>
+</html>

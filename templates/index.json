@@ -1,0 +1,12 @@
+{
+  "blank": {"about":"빈 무대(빛·그레인·드리프트만) — 처음부터 직접 짤 때","format":"shorts","duration":8},
+  "hook": {"about":"숫자 훅 → 문제 → 결과 → 엔드카드, 쇼츠 홍보의 기본형","format":"shorts","duration":8},
+  "ui": {"about":"입력 → 결과 화면 시연(기기 틀 없는 UI 인서트)","format":"insert","duration":6.5},
+  "beat": {"about":"박자 키네틱 타이포 — 마디마다 단어 한 개, 검정↔포인트 색 반전·섬광, 박 램프가 엔드카드 윗줄로. 노래를 넣으면 그 박을 따라간다","format":"shorts","duration":10,"accent":"orange"},
+  "loop": {"about":"끊김 없는 반복 배경 — 숨 쉬는 윤곽선, 그 선을 타는 구슬, 궤도를 도는 포인트 점, 가운데 한 단어(GIF·대기 화면)","format":"square","duration":6},
+  "captions": {"about":"내레이션 설명 쇼츠 — 단어별 자막 + 문장마다 바뀌는 그림(구르는 숫자·예시 차트·흐름·검토 카드) → 엔드카드","format":"shorts","duration":16,"accent":"yellow","files":["captions-demo.captions.json"]},
+  "data": {"about":"질문 → 평균과 비교한 막대 → 그 막대가 휘어 도넛 조각으로 → 큰 숫자 → 한 줄 결론. 발표·유튜브용 데이터 스토리","format":"wide","duration":14},
+  "lowerthird": {"about":"투명 이름표 + 모서리 로고 글자 — 편집 프로그램에 얹는 오버레이(--format mov --alpha)","format":"wide","duration":6},
+  "hero3d": {"about":"스튜디오 조명 아래 포인트 색 금속 조형이 천천히 돌고 옆에 제목이 솟는 3D 히어로(실제 WebGL)","format":"wide","duration":8},
+  "launch": {"about":"훅 → 이름 공개 → 노트북 화면 속 기능 주석 3개 → 화면 속으로 들어가 핵심 숫자 → 행동 유도. motion brand와 짝","format":"wide","duration":15}
+}

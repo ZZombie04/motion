@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./_motion/motion.css">
+<script src="./_motion/gsap.min.js"></script>
+<script src="./_motion/icons.js"></script>
+<script src="./_motion/motion.js"></script>
+<style>
+  /* 끝없이 이어지는 반복 영상(GIF·대기 화면·배경) — 마지막 프레임이 첫 프레임과 같다(data-loop, motion check가 비교한다).
+     로그라인  한 윤곽선이 원 → 둥근 네모 → 원 → 육각형 → 원으로 비틀며 숨 쉬고, 그 선을 구슬 두 개가 타고 돌며, 포인트 색 점 하나가 눈금 궤도를 한 바퀴 돌아 제자리로 온다
+     규칙  모든 움직임의 주기가 길이를 나누어떨어지게(D, D/2, D/3) — cam.drift처럼 한쪽으로만 가는 움직임은 쓰지 않는다.
+     문구는 data-var(motion render --vars "word=…&sub=…"). 길이를 바꿔도 모든 주기가 D에서 다시 계산된다 */
+  .ring { position: absolute; left: 50%; top: 50%; }
+  #dial { width: calc(var(--u) * 100); height: calc(var(--u) * 100); margin: calc(var(--u) * -50) 0 0 calc(var(--u) * -50); overflow: visible; }
+  #dial line { stroke: var(--fg-4); stroke-width: 0.16; stroke-linecap: round; }
+  #dial line.major { stroke: var(--fg-3); stroke-width: 0.22; }
+
+  /* 혜성 — 포인트 색은 화면에 이 점 하나(꼬리는 같은 색이 사라지는 것) */
+  #orbit { width: calc(var(--u) * 82); height: calc(var(--u) * 82); margin: calc(var(--u) * -41) 0 0 calc(var(--u) * -41); }
+  #tail { position: absolute; inset: 0; border-radius: 50%;
+          background: conic-gradient(from 0deg, transparent 0deg 228deg, color-mix(in oklab, var(--accent) 55%, transparent) 340deg, var(--accent) 360deg);
+          -webkit-mask-image: radial-gradient(circle closest-side, transparent calc(100% - var(--u) * 1.16), #000 calc(100% - var(--u) * 1.12), #000 calc(100% - var(--u) * 0.88), transparent calc(100% - var(--u) * 0.84));
+                  mask-image: radial-gradient(circle closest-side, transparent calc(100% - var(--u) * 1.16), #000 calc(100% - var(--u) * 1.12), #000 calc(100% - var(--u) * 0.88), transparent calc(100% - var(--u) * 0.84)); }
+  #comet { position: absolute; left: 50%; top: calc(var(--u) * 1); width: calc(var(--u) * 1.7); height: calc(var(--u) * 1.7); margin: calc(var(--u) * -0.85) 0 0 calc(var(--u) * -0.85); border-radius: 50%;
+           background: var(--accent); box-shadow: 0 0 calc(var(--u) * 1.2) var(--accent), 0 0 calc(var(--u) * 4) color-mix(in oklab, var(--accent) 45%, transparent); }
+
+  /* 바뀌는 윤곽선 — 어떤 모양이어도 가운데 글자를 침범하지 않는 크기(안쪽 반지름 ≥ 글자 덩어리의 외접원) */
+  #mark { width: calc(var(--u) * 66); height: calc(var(--u) * 66); margin: calc(var(--u) * -33) 0 0 calc(var(--u) * -33); overflow: visible; }
+  #outline { fill: rgba(var(--tint), 0.03); stroke: var(--fg-3); stroke-width: 1.7px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .bead { position: absolute; left: 50%; top: 50%; border-radius: 50%; background: var(--fg); }
+  #bead1 { width: calc(var(--u) * 1.1); height: calc(var(--u) * 1.1); margin: calc(var(--u) * -0.55) 0 0 calc(var(--u) * -0.55); }
+  #bead2 { width: calc(var(--u) * 0.7); height: calc(var(--u) * 0.7); margin: calc(var(--u) * -0.35) 0 0 calc(var(--u) * -0.35); background: var(--fg-2); }
+
+  #lockup { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 50%; text-align: center; }
+  #word { margin: 0; font-size: calc(var(--u) * 10); font-weight: 760; line-height: 1.12; letter-spacing: -0.045em; white-space: nowrap; }
+  #sub { margin: calc(var(--u) * 1.4) 0 0; font-size: calc(var(--u) * 2.9); font-weight: 560; letter-spacing: -0.01em; color: var(--fg-2); }
+</style>
+</head>
+<body>
+<div id="stage" data-title="{{TITLE}}" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-fps="{{FPS}}" data-duration="{{DURATION}}" data-theme="{{THEME}}" data-accent="{{ACCENT}}"{{PLATFORM}} data-loop>
+  <div class="mo-bg">
+    <div class="mo-stagelight" style="--key:.08"></div>
+    <div class="mo-glow" id="glow" style="left:50%;top:50%;--s:calc(var(--u)*118);--a:.2"></div>
+  </div>
+
+  <div class="mo-world">
+    <div class="mo-layer" data-z="-170">
+      <svg class="ring" id="dial" viewBox="-50 -50 100 100" aria-hidden="true"></svg>
+      <div class="ring" id="orbit"><div id="tail"></div><i id="comet"></i></div>
+    </div>
+    <div class="mo-layer" data-z="0">
+      <svg class="ring" id="mark" viewBox="0 0 100 100" aria-hidden="true"><path id="outline"/></svg>
+      <i class="bead" id="bead1"></i><i class="bead" id="bead2"></i>
+    </div>
+    <div class="mo-layer" data-z="130">
+      <div id="lockup">
+        <h1 id="word" data-var="word" data-label="가운데 단어">환영합니다</h1>
+        <p id="sub" data-var="sub" data-label="아래 한 줄">잠시 후 시작합니다</p>
+      </div>
+    </div>
+  </div>
+  <div class="mo-vignette"></div>
+</div>
+
+<script>
+Motion.compose((M) => {
+  const { cam, u, D } = M, TAU = Math.PI * 2, SVG = M.$('#dial').namespaceURI;      // SVG 요소를 만들 때 쓰는 이름공간
+  M.grain();                                            // 기본 그레인은 멈춰 있다 — 반복을 깨지 않는다
+
+  // ── 글자: 가운데 덩어리(단어 + 한 줄)를 정확히 화면 중심에. 긴 문구는 윤곽선 안에 들어오게 줄인다 ──
+  const word = M.$('#word'), lock = M.$('#lockup');
+  if (M.rect(word).w > u * 50) M.fitText(word, u * 50);
+  lock.style.marginTop = -lock.offsetHeight / 2 + 'px';
+
+  // ── 눈금 다이얼: 72눈금(30°마다 긴 눈금). 한 바퀴에 긴 눈금 한 칸(30°)만 거꾸로 돈다 → 끝 = 처음 ──
+  const dial = M.$('#dial');
+  for (let i = 0; i < 72; i++) {
+    const a = i * 5 * Math.PI / 180, major = i % 6 === 0, r0 = 41.4, r1 = major ? 43.8 : 42.6, ln = document.createElementNS(SVG, 'line');
+    ln.setAttribute('x1', (Math.sin(a) * r0).toFixed(3)); ln.setAttribute('y1', (-Math.cos(a) * r0).toFixed(3));
+    ln.setAttribute('x2', (Math.sin(a) * r1).toFixed(3)); ln.setAttribute('y2', (-Math.cos(a) * r1).toFixed(3));
+    if (major) ln.setAttribute('class', 'major');
+    dial.appendChild(ln);
+  }
+
+  // ── 윤곽선: M.shape의 모양을 "각도별 반지름 표"로 바꿔 같은 각도끼리 섞는다 → 처음과 끝이 정확히 같다 ──
+  //    늘 원을 거쳐 간다(원 → 네모 → 원 → 육각형 → 원): 대칭이 다른 두 다각형을 바로 섞으면 중간 모양이 일그러진다.
+  //    모양을 바꾸려면 SHAPES에 다른 종류를 넣는다(polygon n·star·blob … 가운데에서 보아 한 번만 꺾이는 모양). SIZE = 보이는 크기 보정, TURN = 바뀌며 비트는 각도
+  const SHAPES = [['circle'], ['squircle'], ['circle'], ['polygon', { n: 6 }], ['circle']], SIZE = [1, 0.9, 1, 1.04, 1], TURN = [45, 45, 0, 45], N = 180;
+  const table = ([kind, opt]) => {
+    const p = document.createElementNS(SVG, 'path'); p.setAttribute('d', M.shape(kind, opt)); M.$('#mark').appendChild(p);
+    const len = p.getTotalLength(), pts = [];
+    for (let i = 0; i < 1440; i++) { const q = p.getPointAtLength((len * i) / 1440); pts.push([Math.atan2(q.y - 50, q.x - 50), Math.hypot(q.x - 50, q.y - 50)]); }
+    p.remove(); pts.sort((a, b) => a[0] - b[0]); pts.push([pts[0][0] + TAU, pts[0][1]]); pts.unshift([pts[pts.length - 2][0] - TAU, pts[pts.length - 2][1]]);
+    return Float64Array.from({ length: N }, (_, k) => {
+      const a = ((-Math.PI / 2 + (k * TAU) / N + Math.PI) % TAU + TAU) % TAU - Math.PI;   // 12시에서 시계 방향
+      let j = 1; while (j < pts.length - 1 && pts[j][0] < a) j++;
+      const [a0, r0] = pts[j - 1], [a1, r1] = pts[j];
+      return r0 + (r1 - r0) * (a1 > a0 ? (a - a0) / (a1 - a0) : 0);
+    });
+  };
+  const radii = SHAPES.map((s, i) => table(s).map((r) => r * SIZE[i]));
+  const T = D / (SHAPES.length - 1), MORPH = T * 0.6, T0 = (T - MORPH) / 2, ease = M.ease('mo.inOut');   // 6초: 0.3초부터 0.9초 바꾸고 0.6초 머문다 × 4
+  const turned = TURN.reduce((acc, a) => acc.concat(acc[acc.length - 1] + a), [0]);                       // 모양마다 쌓인 회전 [0, 45, 90, 90, 135]
+  const outline = M.$('#outline'), cur = new Float64Array(N);
+  const shapeAt = (t) => {                               // t의 순수 함수: 지금의 반지름 표와 비튼 각도
+    const i = M.clamp(Math.floor((t - T0) / T), 0, SHAPES.length - 2), p = ease(M.clamp((t - T0 - i * T) / MORPH, 0, 1));
+    for (let k = 0; k < N; k++) cur[k] = radii[i][k] + (radii[i + 1][k] - radii[i][k]) * p;
+    return (turned[i] + (turned[i + 1] - turned[i]) * p) * Math.PI / 180;
+  };
+  const radiusAt = (a, rot) => { const x = ((((a - rot + Math.PI / 2) / TAU) % 1 + 1) % 1) * N, k = Math.floor(x) % N, f = x - Math.floor(x); return cur[k] + (cur[(k + 1) % N] - cur[k]) * f; };
+
+  // ── 카메라: 작은 원을 그리며 기울었다 돌아온다 — ry = −4·cos(2πt/D), rx = 2.4·sin(2πt/D) (sine 이징 조각이 정확히 그 곡선) ──
+  //    깊이 레이어(눈금 −170 · 윤곽선 0 · 글자 +130)가 서로 다르게 밀려 입체가 생긴다. 한쪽으로만 가는 drift는 반복을 깨므로 쓰지 않는다
+  cam.set({ ry: -4, rx: 0 });
+  cam.to({ ry: 4, duration: D / 2, ease: 'sine.inOut' }, 0);
+  cam.to({ ry: -4, duration: D / 2, ease: 'sine.inOut' }, D / 2);
+  cam.to({ rx: 2.4, duration: D / 4, ease: 'sine.out' }, 0);
+  cam.to({ rx: -2.4, duration: D / 2, ease: 'sine.inOut' }, D / 4);
+  cam.to({ rx: 0, duration: D / 4, ease: 'sine.in' }, D * 3 / 4);
+
+  // ── 매 프레임(t의 주기 함수): 윤곽선 · 구슬 2개(선을 타고 2바퀴·3바퀴) · 혜성 1바퀴 · 다이얼 −30° · 빛의 숨(모난 모양이 설 때 가장 밝게) ──
+  const orbit = M.$('#orbit'), b1 = M.$('#bead1'), b2 = M.$('#bead2'), glow = M.$('#glow'), K = u * 0.66;   // 100칸 viewBox → 66u
+  const bead = (el, a, rot) => { const r = radiusAt(a, rot) * K; el.style.translate = `${(Math.cos(a) * r).toFixed(2)}px ${(Math.sin(a) * r).toFixed(2)}px`; };
+  M.onFrame((t) => {
+    const p = t / D, rot = shapeAt(t);
+    let d = '';
+    for (let k = 0; k < N; k++) { const a = -Math.PI / 2 + (k * TAU) / N + rot; d += (k ? 'L' : 'M') + (50 + Math.cos(a) * cur[k]).toFixed(2) + ' ' + (50 + Math.sin(a) * cur[k]).toFixed(2); }
+    outline.setAttribute('d', d + 'Z');
+    bead(b1, -Math.PI / 2 - p * 2 * TAU + 0.9, rot);
+    bead(b2, -Math.PI / 2 + p * 3 * TAU + 2.6, rot);
+    orbit.style.rotate = (p * 360).toFixed(3) + 'deg';
+    dial.style.rotate = (-p * 30).toFixed(3) + 'deg';
+    glow.style.opacity = (0.72 + 0.28 * Math.cos((TAU * 2 * (t - T0 - MORPH - (T - MORPH) / 2)) / D)).toFixed(4);
+  });
+});
+</script>
+</body>
+</html>

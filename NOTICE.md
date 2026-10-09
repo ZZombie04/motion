@@ -15,11 +15,15 @@
 
 | 패키지 | 용도 | 라이선스 |
 |---|---|---|
-| gsap | 타임라인 엔진. `npm install` 때 `engine/vendor/`로 복사된다 | GSAP Standard "no charge" License (<https://gsap.com/standard-license>) |
+| gsap | 타임라인 엔진과 플러그인(MorphSVG·DrawSVG·MotionPath·CustomEase 등). `npm install` 때 `engine/vendor/`로 묶여 복사된다 | GSAP Standard "no charge" License (<https://gsap.com/standard-license>) |
+| three | 실제 3D(`M.three`). 쓰는 컴포지션에만 불러온다 | MIT |
+| lottie-web | Lottie 애니메이션 재생(`M.lottie`) | MIT |
 | puppeteer-core | 설치된 Chrome/Edge를 조종해 프레임 캡처 | Apache-2.0 |
 | @modelcontextprotocol/sdk, zod | MCP 서버 | MIT |
 
 ffmpeg와 Chrome/Edge는 사용자의 컴퓨터에 설치된 것을 쓴다.
+
+효과음 20종은 이 저장소의 코드(`lib/sfx.mjs`)가 합성한다 — 녹음 파일이나 외부 라이브러리를 쓰지 않으므로 이 저장소와 같은 MIT 조건으로 자유롭게 쓸 수 있다.
 
 ## 참고한 자료
 

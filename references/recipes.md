@@ -3,7 +3,7 @@
 각 레시피는 **언제 쓰나 → 비트 → 핵심 코드**. 그대로 베끼는 틀이 아니라 출발점이다. 문구·수치·시간은 트리트먼트에 맞춘다.
 코드의 `tl, cam, u, W, H`는 `const { tl, cam, u, W, H } = M;`. 모든 레시피는 `M.grain(); cam.drift({ zoom: 1.05 });`가 깔려 있다고 가정한다.
 
-목차 — **타이포** 1 헤드라인+형광펜 · 2 박자 워드 슬램 · 3 문구 교체 슬롯 · 4 아웃라인 마키 배경 ｜ **숫자** 5 스탯 히어로 · 6 전→후 숫자 · 7 링 게이지 · 8 막대 차트 · 9 선 차트 ｜ **UI** 10 입력→결과 · 11 채팅 스트리밍 · 12 작업 체크리스트 · 13 터미널 실행 · 14 검색→답 ｜ **기기·깊이** 15 폰 히어로 턴 · 16 노트북 열기 · 17 레이어 패럴랙스+랙 포커스 · 18 스포트라이트 리프트 ｜ **전환** 19 줌 스루 · 20 공유 요소 변신 · 21 풀백 리빌 ｜ **설명** 22 흐름 다이어그램 · 23 단계 1·2·3 · 24 전/후 와이프 ｜ **브랜드** 25 로고 스팅 · 26 엔드카드 · 27 로워서드(투명) ｜ **분위기** 28 사진 켄 번스 · 29 색종이·입자
+목차 — **타이포** 1 헤드라인+형광펜 · 2 박자 워드 슬램 · 3 문구 교체 슬롯 · 4 아웃라인 마키 배경 ｜ **숫자** 5 스탯 히어로 · 6 전→후 숫자 · 7 링 게이지 · 8 막대 차트 · 9 선 차트 ｜ **UI** 10 입력→결과 · 11 채팅 스트리밍 · 12 작업 체크리스트 · 13 터미널 실행 · 14 검색→답 ｜ **기기·깊이** 15 폰 히어로 턴 · 16 노트북 열기 · 17 레이어 패럴랙스+랙 포커스 · 18 스포트라이트 리프트 ｜ **전환** 19 줌 스루 · 20 공유 요소 변신 · 21 풀백 리빌 ｜ **설명** 22 흐름 다이어그램 · 23 단계 1·2·3 · 24 전/후 와이프 ｜ **브랜드** 25 로고 스팅 · 26 엔드카드 · 27 로워서드(투명) ｜ **분위기** 28 사진 켄 번스 · 29 색종이·입자 ｜ **2부** 30 음악 박 키네틱 · 31 저음 반응 배경 · 32 단어 자막 쇼츠 · 33 액체 탭 인디케이터 · 34 슬라이더 끌기 · 35 도형→로고 · 36 막대→도넛→추세 · 37 3D 히어로 · 38 로티 아이콘 · 39 글리치·빛샘·시계 전환 · 40 이름표(투명) · 41 반복 GIF · 42 개인화 일괄
 
 ---
 
@@ -401,7 +401,7 @@ cur.show(1.2);  cur.moveTo('#cta', { ax: 0.74 }, 1.2);  cur.click(2.0);  M.press
 *언제*: 편집 프로그램에서 영상 위에 얹는 이름표·자막바. `motion render --format mov --alpha`.
 ```html
 <div id="stage" data-width="1920" data-height="1080" data-duration="5" data-theme="ink" data-accent="blue">
-  <div class="lt"><i class="bar"></i><div><p class="mo-h3" id="nm">강주원 장학사</p><p class="mo-small" id="rl">평택교육지원청</p></div></div>
+  <div class="lt"><i class="bar"></i><div><p class="mo-h3" id="nm">김하늘 수석교사</p><p class="mo-small" id="rl">○○초등학교</p></div></div>
 </div>
 ```
 ```css
@@ -446,3 +446,149 @@ M.onFrame((t) => {
 });
 ```
 `<div class="mo-overlay"></div>`를 무대에 두고 그 안에 그린다. 색은 흰색 + 포인트 한 색만(무지개 금지).
+
+
+---
+
+# 2부 — 소리·자막·스프링·도형·데이터·3D
+
+## 30. 음악의 실제 박에 맞춘 키네틱 타이포
+*언제*: 노래가 있는 홍보·행사·뮤직 영상.
+```html
+<div id="stage" … data-bpm="124"><audio src="song.mp3" data-start="0" data-fade-out="1.5"></audio> … </div>
+```
+```js
+const music = M.audio('song.mp3'), b = M.grid();                      // 노래에서 잰 박(노래가 없으면 data-bpm)
+const words = M.$$('.w');                                             // <section class="mo-scene w"><h1>…</h1></section> × n
+words.forEach((w, i) => {
+  M.transition('cut', i ? words[i - 1] : null, w, { at: b(i * 2) });
+  M.reveal(w.querySelector('h1'), { type: 'slam', sfx: i % 4 === 0 }, b(i * 2));   // 강박(4개마다)에만 소리
+  cam.punch({ scale: i % 4 === 0 ? 1.06 : 1.03 }, b(i * 2));
+});
+M.transition('flash', words[3], '#title', { at: music.downbeats[2] || b(8), sfx: true });   // 마디 첫 박에 가장 큰 변화
+```
+검수: `motion sheet 파일 --beats music`.
+
+## 31. 저음에 반응하는 배경
+```js
+const music = M.audio('song.mp3');
+M.onFrame((t) => {
+  const k = music.low(t), p = music.pulse(t, 0.14);
+  M.$('#halo').style.opacity = (0.25 + 0.75 * k).toFixed(3);          // 킥에 맞춰 숨 쉬는 빛(.mo-glow)
+  M.$('#halo').style.scale = (1 + 0.06 * p).toFixed(4);
+});
+```
+음악 세기는 **장식에만**(빛·입자·막대). 글자 크기를 음악에 묶지 않는다.
+
+## 32. 단어 자막 쇼츠(내레이션)
+```html
+<audio src="voice.wav" data-role="voice" data-start="0.4"></audio>
+<div data-captions="voice.captions.json pop"></div>                   <!-- motion captions align 대본.txt voice.wav -->
+<h2 class="mo-h1 kw" id="k1">두 시간</h2> <h2 class="mo-h1 kw" id="k2">십 분</h2>
+```
+```js
+// 문장 시작 시각(자막 파일의 start)보다 0.3초 먼저 그림이 바뀐다
+[[0.4, '#k1'], [4.3, '#k2']].forEach(([t, el], i, a) => { M.scene(el, t - 0.3, a[i + 1] ? a[i + 1][0] - 0.3 : null); M.reveal(el, { type: 'rise' }, t - 0.3); });
+```
+화면 위 1/3에 핵심어, 아래에 자막. 자세히는 `references/captions.md`.
+
+## 33. 액체 탭 인디케이터(스프링 두 개)
+*언제*: 탭·세그먼트·메뉴 선택이 바뀌는 UI.
+```js
+const cur = M.cursor(), ind = M.$('#ind');                            // <i id="ind"> = 탭 아래 막대(position:absolute)
+const at = (id) => { const r = M.rect(id), p = M.rect('#tabs'); return [r.x - p.x, r.x - p.x + r.w]; };
+const keys = [[0, at('#t1')], [2.0, at('#t2')], [3.4, at('#t3')]];
+const L = M.springValue(keys.map(([t, v]) => [t, v[0]]), 'snappy');    // 앞서가는 가장자리
+const R = M.springValue(keys.map(([t, v]) => [t, v[1]]), 'gentle');    // 따라붙는 가장자리
+M.onFrame((t) => { const a = Math.min(L(t), R(t)), b = Math.max(L(t), R(t)); ind.style.left = a + 'px'; ind.style.width = (b - a) + 'px'; });
+cur.moveTo('#t2', 1.4); cur.click({ sfx: true }, 2.0); cur.moveTo('#t3', 2.6); cur.click({ sfx: true }, 3.4);
+```
+
+## 34. 슬라이더 끌기
+```js
+const cur = M.cursor({ hidden: true }); cur.show(0.8); cur.moveTo('#knob', 0.8);
+cur.drag('#trackEnd', { duration: 0.8, sfx: true }, 1.8);              // 누른 채 끌고 가서 놓기
+const v = M.springValue([[0, 0], [2.0, 1], [3.2, 0.72]], 'snappy');     // 끝까지 갔다가 놓으면 제자리로
+M.onFrame((t) => { M.$('#fill').style.setProperty('--p', v(t).toFixed(4)); });   // .mo-progress
+```
+
+## 35. 도형이 로고가 된다
+```html
+<svg viewBox="0 0 100 100" style="width:calc(var(--u)*24)"><path id="mark" fill="var(--accent)"/></svg>
+<svg style="display:none"><path id="logo" d="…로고 윤곽…"/></svg>
+```
+```js
+M.$('#mark').setAttribute('d', M.shape('circle'));
+M.reveal('#mark', { type: 'pop', sfx: true }, 0.2);
+M.morphPath('#mark', [M.shape('squircle'), M.shape('star', { n: 6, inner: 0.6 }), '#logo'], { duration: 0.75, hold: 0.25 }, 0.9);
+M.sfx('drop', 3.1);                                                     // 로고가 자리 잡는 순간
+```
+
+## 36. 데이터: 막대 → 도넛 → 추세
+```js
+M.chart('#bars', { type: 'column', data: [42, 58, 50, 94, 71], labels: ['월', '화', '수', '목', '금'] }, 0.6);
+M.callout('#bars .hi', { text: '94<small>최고</small>', side: 'top' }, 1.9);
+cam.lookAt('#ring', { zoom: 1.15, duration: 1.4 }, 3.2);
+M.chart('#ring', { type: 'donut', data: [62, 24, 14], labels: ['참여', '관망', '미참여'] }, 3.6);
+M.chart('#trend', { type: 'area', data: [12, 18, 15, 26, 31, 29, 44], labels: ['1', '2', '3', '4', '5', '6', '7'], highlight: 6 }, 6.0);
+```
+강조는 차트마다 하나. 나머지는 회색 그대로.
+
+## 37. 실제 3D 오브젝트 히어로
+```html
+<canvas id="obj" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+```
+```js
+M.three('#obj', (THREE, { scene, camera }) => {
+  const accent = getComputedStyle(M.stage).getPropertyValue('--accent').trim();
+  const mesh = new THREE.Mesh(new THREE.TorusKnotGeometry(1.1, 0.34, 240, 36), new THREE.MeshStandardMaterial({ color: accent, metalness: 0.6, roughness: 0.24 }));
+  scene.add(mesh, new THREE.AmbientLight('#ffffff', 0.25));
+  const key = new THREE.DirectionalLight('#ffffff', 2.4); key.position.set(3, 4, 5); scene.add(key);
+  const rim = new THREE.DirectionalLight(accent, 1.6); rim.position.set(-4, 1, -4); scene.add(rim);
+  camera.position.set(0, 0, 8);
+  return (t) => { mesh.rotation.set(0.3 + t * 0.25, t * 0.5, 0); mesh.position.x = 1.8; camera.position.z = 8 - M.smooth(t / 5) * 1.4; };
+});
+M.reveal('#title', { type: 'rise' }, 0.6);                              // 글자는 오브젝트 반대편 여백에
+```
+
+## 38. 로티 아이콘
+```html
+<div id="ok" data-lottie="check.json 2.1"></div>                       <!-- After Effects·LottieFiles의 JSON -->
+```
+프레임 단위로 정확히 재생된다. 색이 브랜드와 다르면 파일에서 바꾸거나, 단색 아이콘(`data-icon`)을 쓴다.
+
+## 39. 글리치·빛샘·시계 전환
+```js
+M.transition('glitch', '#s1', '#s2', { at: 3.0, sfx: true });          // 테크·오류
+M.transition('leak', '#s2', '#s3', { at: 6.0, sfx: true });            // 장 바꿈, 감성
+M.transition('clock', '#s3', '#s4', { at: 9.0, x: '50%', y: '50%' });  // 시간·순서
+```
+한 영상에 새 전환은 2–3종까지. 매번 다른 전환을 쓰면 "효과 모음"처럼 보인다.
+
+## 40. 이름표(투명 배경 오버레이)
+```js
+M.lowerThird({ name: M.var('name', '김하늘'), title: M.var('role', '수석교사 · ○○초등학교'), out: 5.2, sfx: true }, 0.4);
+```
+`motion render 파일 --format mov --alpha`. 배경·그레인·비네트 없이.
+
+## 41. 반복 GIF
+```html
+<div id="stage" … data-duration="4" data-loop>
+```
+```js
+const dot = M.$('#dot');
+M.onFrame((t) => { const a = t / 4 * M.TAU; dot.style.translate = `${Math.cos(a) * u * 12}px ${Math.sin(a * 2) * u * 6}px`; });   // 주기가 길이를 나누어 떨어진다
+M.rays({ period: 4 });                                                  // 4초에 한 바퀴(= 처음과 같은 모습)
+```
+`cam.drift`는 쓰지 않는다. `motion render 파일 --format gif`.
+
+## 42. 한 편을 여러 편으로(개인화)
+```html
+<h1 data-var="name" data-label="학생 이름">홍길동</h1> <p data-var="msg">수고했어요</p>
+```
+```
+이름,name,msg,accent
+민지,김민지,끝까지 완주!,mint
+서준,이서준,"멋진 발표, 고마워요",orange
+```
+`motion batch card.html --data rows.csv --name "{이름}"` → 행마다 한 편. 가장 긴 이름으로 먼저 한 편을 렌더해 넘치지 않는지 본다.

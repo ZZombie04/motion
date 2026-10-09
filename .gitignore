@@ -2,7 +2,9 @@ node_modules/
 _motion/
 out/
 work/
-engine/vendor/gsap.min.js
+engine/vendor/
+engine/sfx/
 *.log
 .DS_Store
 Thumbs.db
+*.check.png

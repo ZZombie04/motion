@@ -22,6 +22,19 @@
 
 **퇴장은 등장의 절반.** 들어올 때 0.9초면 나갈 때 0.4초. 나가는 것은 주목받을 필요가 없다.
 
+**스프링** — 물리로 계산한 감속. UI·작은 물체가 "살아 있는" 느낌이 필요할 때.
+
+| 프리셋 | 느낌 | 쓰는 곳 |
+|---|---|---|
+| `stiff` | 거의 튕김 없이 단단하게 멈춤 | 큰 카드·패널의 자리 잡기 |
+| `snappy` | 빠르고 짧은 탄성 | 토글·탭·버튼·인디케이터 |
+| `smooth` | 부드러운 기본 | 일반 UI 이동 |
+| `gentle` | 느긋하게 따라옴 | 뒤따르는 요소, 그림자 |
+| `bouncy` | 눈에 띄게 튕김 | 칩·점·배지 **만** |
+| `heavy` | 무겁게 늦게 멈춤 | 큰 오브젝트, 3D |
+
+`tl.to(el, { x: 300, ...M.spring('snappy') }, t)` · 목표가 여러 번 바뀌는 움직임은 `M.springValue([[t0, v0], [t1, v1], …], 'snappy')` — 바뀌는 순간의 속도를 이어받아 끊김이 없다. 앞 가장자리는 `snappy`, 뒤 가장자리는 `gentle`로 따로 움직이면 늘어났다 따라붙는 "액체" 인디케이터가 된다.
+
 ## 2. 스태거와 겹침
 
 - 같은 무리의 요소는 **0.05–0.1초 간격**으로(줄 0.1, 어절 0.055, 글자 0.024, 목록 0.09, 카드 0.07).
@@ -120,7 +133,16 @@ const b = M.beats(128);            // 한 박 0.469초
 - 타격은 `M.reveal(el, { type: 'slam' }, b(i))` 한 줄로도 된다. 컷마다 `cam.punch({ scale: 1.04 }, b(i))`를 얹으면 화면 전체가 박을 받는다.
 - 박자 영상의 검수는 `motion sheet --beats 128`(박마다 한 장).
 - 4박·8박 단위로 구조를 바꾼다(배경 반전, 레이아웃 변화). 마지막 2–4박은 홀드.
-- 음악 파일이 없어도 BPM을 정해 두면 나중에 음악을 얹기 쉽다(`--audio`).
+- 음악 파일이 없어도 BPM을 정해 두면(`data-bpm`) 나중에 음악을 얹기 쉽다.
+- **음악이 있으면 계산하지 말고 잰다**: `<audio src="노래.mp3" data-start="0">`를 넣으면 `M.grid()`가 노래에서 잰 실제 박을 돌려주고, 속성의 `b8` 토큰도 그 박을 따른다. 큰 변화는 `music.downbeats`(마디 첫 박)에.
+- 박자 시트: `motion sheet 파일 --beats music` — 박마다 한 장씩 놓고, 박 위의 그림이 매번 달라지는지(같은 그림 3박 이상이면 지루하다) 본다.
+
+```js
+const music = M.audio('bgm.mp3'), b = M.grid();
+['READY', '달리고', '던지고', '함께'].forEach((w, i) => M.reveal(`#w${i}`, { type: 'slam', sfx: i % 4 === 0 }, b(i)));
+M.transition('flash', '#s1', '#s2', { at: music.downbeats[2], sfx: true });
+M.onFrame((t) => { M.$('#halo').style.opacity = (0.2 + 0.8 * music.low(t)).toFixed(3); });   // 저음에 맞춰 숨 쉬는 빛(장식에만)
+```
 
 ## 7. 미세 상호작용 사전
 
@@ -137,6 +159,9 @@ const b = M.beats(128);            // 한 박 0.469초
 | 토글 | `M.fill(toggle, { duration: .35, ease: 'mo.spring' }, t)` |
 | 알림 도착 | `M.reveal(noti, { type: 'drop' }, t)` |
 | 완료의 빛 | `tl.fromTo(card, { '--sheen': -0.3 }, { '--sheen': 1.3, duration: .9, ease: 'mo.inOut' }, t)`(카드에 `mo-sheen`) |
+| 끌기(슬라이더) | `cur.drag('#knobEnd', { duration: .7 }, t)` + 값은 `M.springValue`로 커서를 따라가다 놓으면 제자리 |
+| 내용 바꾸기 | `M.text(el, [[t, '새 문구']], { blur: true })` — 짧게 흐려졌다 맺힌다(컨테이너는 그대로) |
+| 상태 전환의 소리 | 클릭 `click` · 완료 `success` · 오류 `error` — 도우미에 `sfx: true` |
 
 ## 8. 끊기지 않게 잇는 요령
 

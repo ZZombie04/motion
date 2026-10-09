@@ -10,7 +10,7 @@ A motion-graphics skill + MCP server + render engine for Claude, Codex and ChatG
 
 [![MIT](https://img.shields.io/badge/license-MIT-111111)](LICENSE) [![Node 18+](https://img.shields.io/badge/node-18%2B-111111)](package.json) [![MCP](https://img.shields.io/badge/MCP-22%20tools-3D7BFF)](mcp/server.mjs) [![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-111111)](SKILL.md)
 
-[한국어](README.md) · [Landing page](https://zzombie04.github.io/motion/) · [7 samples](samples/README.md) · [Templates](#templates)
+[한국어](README.md) · [Landing page](https://zzombie04.github.io/motion/) · [7 samples](samples/README.md) · [Templates](#templates) · Made by [AI리치쌤](https://joo.is/AI%EB%A6%AC%EC%B9%98%EC%8C%A4)
 
 </div>
 
@@ -178,3 +178,11 @@ The documentation under `references/` is written in Korean. Models read it fine 
 
 The directing method generalises an analysis of Career Hacker Alex's [motion-graphics kit](https://www.careerhackeralex.com/sharings/cha-motion-kit) ([analysis](docs/site-analysis.md)). None of that site's prompts, videos or source is included.
 Code and docs are MIT. Fonts (Pretendard, Geist, Instrument Serif, OFL), icons (Lucide, ISC) and installed dependencies are listed in [`NOTICE.md`](NOTICE.md).
+
+---
+
+<div align="center">
+
+Made by **[AI리치쌤](https://joo.is/AI%EB%A6%AC%EC%B9%98%EC%8C%A4)** · [joo.is/AI리치쌤](https://joo.is/AI%EB%A6%AC%EC%B9%98%EC%8C%A4)
+
+</div>

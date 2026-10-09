@@ -10,7 +10,7 @@ Claude · Codex · ChatGPT에 붙이는 모션그래픽 스킬 + MCP 서버 + �
 
 [![MIT](https://img.shields.io/badge/license-MIT-111111)](LICENSE) [![Node 18+](https://img.shields.io/badge/node-18%2B-111111)](package.json) [![MCP](https://img.shields.io/badge/MCP-22%20tools-3D7BFF)](mcp/server.mjs) [![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-111111)](SKILL.md)
 
-[English](README.en.md) · [소개 페이지](https://zzombie04.github.io/motion/) · [샘플 7편](samples/README.md) · [템플릿](#템플릿)
+[English](README.en.md) · [소개 페이지](https://zzombie04.github.io/motion/) · [샘플 7편](samples/README.md) · [템플릿](#템플릿) · 만든 사람 [AI리치쌤](https://joo.is/AI%EB%A6%AC%EC%B9%98%EC%8C%A4)
 
 </div>
 
@@ -170,3 +170,11 @@ samples/              요청 → 트리트먼트 → 코드 → 영상
 
 연출 방법론은 Career Hacker Alex의 [따라 만드는 모션그래픽 160](https://www.careerhackeralex.com/sharings/cha-motion-kit)을 분석해 일반화했다([분석 문서](docs/site-analysis.md)). 그 사이트의 프롬프트·영상·소스는 포함하지 않았다.
 코드·문서는 MIT. 글꼴(Pretendard·Geist·Instrument Serif, OFL), 아이콘(Lucide, ISC), 설치 때 받는 의존성의 고지는 [`NOTICE.md`](NOTICE.md).
+
+---
+
+<div align="center">
+
+만든 사람 **[AI리치쌤](https://joo.is/AI%EB%A6%AC%EC%B9%98%EC%8C%A4)** · [joo.is/AI리치쌤](https://joo.is/AI%EB%A6%AC%EC%B9%98%EC%8C%A4)
+
+</div>

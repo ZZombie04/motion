@@ -4,6 +4,7 @@
   "description": "말 한마디를 감독이 연출한 모션그래픽으로 — 리프롬프팅 디렉터 + 결정적 HTML/GSAP 엔진 + 모션 블러 렌더러 + 사운드·자막·채점 + MCP 서버 22종",
   "type": "module",
   "license": "MIT",
+  "author": "AI리치쌤 (https://joo.is/AI%EB%A6%AC%EC%B9%98%EC%8C%A4)",
   "private": true,
   "bin": {
     "motion": "bin/motion.mjs"
